@@ -1,0 +1,62 @@
+[15-Jul-2026 12:46:21 UTC] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php:193
+Stack trace:
+#0 {main}
+  thrown in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php on line 193
+[15-Jul-2026 12:58:25 UTC] PHP Warning:  mysqli::__construct(): (08004/1040): Too many connections in /home1/atrmarke/public_html/atrdemolive.site/csample/china/includes/database.php on line 15
+[15-Jul-2026 12:59:32 UTC] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in /home1/atrmarke/public_html/atrdemolive.site/csample/china/includes/database.php:41
+Stack trace:
+#0 /home1/atrmarke/public_html/atrdemolive.site/csample/china/includes/database.php(41): mysqli_stmt->bind_param()
+#1 /home1/atrmarke/public_html/atrdemolive.site/csample/china/includes/database.php(101): executePrepared()
+#2 /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/chinese_supplier_payment.php(157): insertData()
+#3 {main}
+  thrown in /home1/atrmarke/public_html/atrdemolive.site/csample/china/includes/database.php on line 41
+[15-Jul-2026 13:09:57 UTC] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php:193
+Stack trace:
+#0 {main}
+  thrown in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php on line 193
+[15-Jul-2026 13:11:20 UTC] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php:193
+Stack trace:
+#0 {main}
+  thrown in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php on line 193
+[15-Jul-2026 13:20:04 UTC] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in /home1/atrmarke/public_html/atrdemolive.site/csample/china/includes/database.php:41
+Stack trace:
+#0 /home1/atrmarke/public_html/atrdemolive.site/csample/china/includes/database.php(41): mysqli_stmt->bind_param()
+#1 /home1/atrmarke/public_html/atrdemolive.site/csample/china/includes/database.php(101): executePrepared()
+#2 /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/customer_receiving.php(59): insertData()
+#3 {main}
+  thrown in /home1/atrmarke/public_html/atrdemolive.site/csample/china/includes/database.php on line 41
+[15-Jul-2026 13:21:38 UTC] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in /home1/atrmarke/public_html/atrdemolive.site/csample/china/includes/database.php:41
+Stack trace:
+#0 /home1/atrmarke/public_html/atrdemolive.site/csample/china/includes/database.php(41): mysqli_stmt->bind_param()
+#1 /home1/atrmarke/public_html/atrdemolive.site/csample/china/includes/database.php(101): executePrepared()
+#2 /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/customer_receiving.php(59): insertData()
+#3 {main}
+  thrown in /home1/atrmarke/public_html/atrdemolive.site/csample/china/includes/database.php on line 41
+[25-Jul-2026 07:08:00 UTC] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php:193
+Stack trace:
+#0 {main}
+  thrown in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php on line 193
+[25-Jul-2026 07:20:14 UTC] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php:193
+Stack trace:
+#0 {main}
+  thrown in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php on line 193
+[25-Jul-2026 07:21:56 UTC] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php:193
+Stack trace:
+#0 {main}
+  thrown in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php on line 193
+[25-Jul-2026 07:21:56 UTC] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php:193
+Stack trace:
+#0 {main}
+  thrown in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php on line 193
+[25-Jul-2026 07:22:06 UTC] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php:193
+Stack trace:
+#0 {main}
+  thrown in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php on line 193
+[25-Jul-2026 07:22:23 UTC] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php:193
+Stack trace:
+#0 {main}
+  thrown in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php on line 193
+[25-Jul-2026 08:01:11 UTC] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php:193
+Stack trace:
+#0 {main}
+  thrown in /home1/atrmarke/public_html/atrdemolive.site/csample/china/pages/add_production.php on line 193
