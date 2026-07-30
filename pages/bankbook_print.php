@@ -4,33 +4,21 @@ requireLogin();
 
 $fromDate = isset($_GET['from_date']) ? $_GET['from_date'] : date('Y-m-01');
 $toDate = isset($_GET['to_date']) ? $_GET['to_date'] : date('Y-m-d');
-$bankFilter = isset($_GET['bank_id']) ? (int)$_GET['bank_id'] : 0;
 
-$banks = getRows("SELECT id, bank_name, account_number, opening_balance FROM banks WHERE status = 'active' ORDER BY bank_name");
-
-$bankName = 'All Banks';
 $openingBalance = 0;
-if ($bankFilter > 0) {
-    $selectedBank = getRow("SELECT id, bank_name, account_number, opening_balance FROM banks WHERE id = ?", 'i', [$bankFilter]);
-    if ($selectedBank) {
-        $bankName = $selectedBank['bank_name'] . ' (' . $selectedBank['account_number'] . ')';
-        $openingBalance = (float)$selectedBank['opening_balance'];
-    }
-} else {
-    foreach ($banks as $b) {
-        $openingBalance += (float)$b['opening_balance'];
-    }
-}
 
 $totalBankIn = 0;
 $totalBankOut = 0;
 
 $baseSql = "SELECT payment_date as txn_date, CONCAT('Receipt - ', receipt_no) as description, receipt_no as reference, amount as bank_in, 0 as bank_out, 'in' as direction
-    FROM customer_receipts WHERE payment_method IN ('bank_transfer', 'cheque')";
+    FROM customer_receipts WHERE payment_method IN ('bank', 'bank_transfer', 'cheque')";
 $baseSql .= " UNION ALL SELECT payment_date, CONCAT('Payment - ', payment_no), payment_no, 0, amount, 'out'
-    FROM supplier_payments WHERE payment_type IN ('bank_transfer', 'cheque')";
+    FROM supplier_payments WHERE payment_type IN ('bank', 'bank_transfer', 'cheque')";
 $baseSql .= " UNION ALL SELECT expense_date, CONCAT('Expense - ', category, ' - ', expense_no), expense_no, 0, amount, 'out'
-    FROM expenses WHERE status = 'paid' AND (paid_by LIKE '%bank%' OR paid_by LIKE '%cheque%')";
+    FROM expenses WHERE status = 'paid' AND paid_by IN ('bank', 'bank_transfer', 'cheque')";
+$baseSql .= " UNION ALL SELECT cp.payment_date, CONCAT('Chinese Payment - ', cp.payment_no), cp.payment_no, 0, cp.amount_pkr, 'out'
+    FROM chinese_supplier_payments cp
+    WHERE cp.payment_type IN ('bank', 'bank_transfer', 'cheque', 'online', 'telegraphic_transfer') AND cp.status = 'completed'";
 $baseSql .= " ORDER BY txn_date ASC";
 
 $transactions = getRows($baseSql);
@@ -52,7 +40,7 @@ $company = getRow("SELECT * FROM company_settings LIMIT 1");
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Bank Book - <?php echo htmlspecialchars($bankName); ?></title>
+<title>Bank Book</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 <style>
@@ -110,26 +98,19 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
 <body>
 
 <div class="action-buttons">
-    <a href="bankbook.php?from_date=<?php echo $fromDate; ?>&to_date=<?php echo $toDate; ?>&bank_id=<?php echo $bankFilter; ?>" class="btn btn-outline-light btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+    <a href="bankbook.php?from_date=<?php echo $fromDate; ?>&to_date=<?php echo $toDate; ?>" class="btn btn-outline-light btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
     <span class="text-white fw-bold me-2"><i class="fas fa-book me-1"></i>Bank Book</span>
     <button class="btn btn-light btn-sm" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
     <button class="btn btn-success btn-sm" onclick="downloadPDF()"><i class="fas fa-download me-1"></i>Download PDF</button>
-    <span class="text-white ms-auto"><?php echo htmlspecialchars($bankName); ?></span>
 </div>
 
 <div class="ledger-wrapper">
 <div class="ledger-a4" id="ledgerContent">
-    <div class="inv-header">
-        <h3>BANK BOOK</h3>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <?php if ($company['address'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;"><?php echo htmlspecialchars($company['address']); ?></p><?php endif; ?>
-        <?php if ($company['phone'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;">Ph: <?php echo htmlspecialchars($company['phone']); ?></p><?php endif; ?>
-    </div>
+    <?php include '../includes/print_branding.php'; ?>
 
     <div class="inv-meta">
         <div>
-            <strong>Bank:</strong> <?php echo htmlspecialchars($bankName); ?><br>
-            <strong>Period:</strong> <?php echo date('d-m-Y', strtotime($fromDate)); ?> to <?php echo date('d-m-Y', strtotime($toDate)); ?>
+            <strong>Period:</strong> <?php echo formatDate($fromDate); ?> to <?php echo formatDate($toDate); ?>
         </div>
         <div style="text-align:right">
             <strong>Printed:</strong> <?php echo date('d-m-Y h:i A'); ?><br>
@@ -137,7 +118,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
         </div>
     </div>
 
-    <div class="inv-title">BANK BOOK STATEMENT | <?php echo htmlspecialchars($bankName); ?> | <?php echo date('d-m-Y', strtotime($fromDate)); ?> to <?php echo date('d-m-Y', strtotime($toDate)); ?></div>
+    <div class="inv-title">BANK BOOK STATEMENT | <?php echo formatDate($fromDate); ?> to <?php echo formatDate($toDate); ?></div>
 
     <div class="summary-box">
         <div class="summary-item">
@@ -173,7 +154,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
         <tbody>
             <tr class="opening-row">
                 <td></td>
-                <td><?php echo date('d-m-Y'); ?></td>
+                <td><?php echo formatDate($fromDate); ?></td>
                 <td><strong>Opening Balance</strong></td>
                 <td></td>
                 <td style="text-align:right"></td>
@@ -189,7 +170,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
                     <?php $runningBalance += (float)$txn['bank_in'] - (float)$txn['bank_out']; ?>
                     <tr>
                         <td><?php echo $counter++; ?></td>
-                        <td><?php echo date('d-m-Y', strtotime($txn['txn_date'])); ?></td>
+                        <td><?php echo formatDate($txn['txn_date']); ?></td>
                         <td><?php echo htmlspecialchars($txn['description']); ?></td>
                         <td><strong><?php echo htmlspecialchars($txn['reference']); ?></strong></td>
                         <td style="text-align:right">
@@ -233,7 +214,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
     </table>
 
     <div class="inv-footer">
-        <p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
+        <p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo CLIENT_NAME; ?></p>
     </div>
 </div>
 </div>

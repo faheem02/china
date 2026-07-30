@@ -14,8 +14,10 @@ if ($flash) {
 
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
-    $payment = getRow("SELECT id FROM supplier_payments WHERE id = ?", 'i', [$id]);
+    $payment = getRow("SELECT id, supplier_id, amount FROM supplier_payments WHERE id = ?", 'i', [$id]);
     if ($payment) {
+        modifyData("DELETE FROM accounts WHERE reference_type = 'Supplier Payment' AND reference_id = ?", 'i', [$id]);
+        modifyData("UPDATE local_suppliers SET current_balance = current_balance + ? WHERE id = ?", 'di', [$payment['amount'], $payment['supplier_id']]);
         modifyData("DELETE FROM supplier_payments WHERE id = ?", 'i', [$id]);
         setFlash('Payment deleted successfully!', 'success');
         header('Location: ' . $_SERVER['PHP_SELF']);
@@ -24,13 +26,12 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
     $supplier_id = (int)$_POST['supplier_id'];
     $payment_date = $_POST['payment_date'];
     $amount = (float)$_POST['amount'];
     $payment_type = $_POST['payment_type'];
     $reference_no = trim($_POST['reference_no']);
-    $bank_name = trim($_POST['bank_name']);
-    $cheque_no = trim($_POST['cheque_no']);
     $notes = trim($_POST['notes']);
 
     if (empty($supplier_id)) {
@@ -44,18 +45,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $messageType = 'danger';
     } else {
         $currentDateTime = getCurrentDateTime();
-        $payment_no = generateCode('PAY');
 
-        $result = insertData("INSERT INTO supplier_payments (payment_no, supplier_id, payment_date, amount, payment_type, reference_no, bank_name, cheque_no, notes, date_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            'sisdssssss', [$payment_no, $supplier_id, $payment_date, $amount, $payment_type, $reference_no, $bank_name, $cheque_no, $notes, $currentDateTime]);
+        if ($id > 0) {
+            // Update existing payment
+            $oldPayment = getRow("SELECT supplier_id, amount FROM supplier_payments WHERE id = ?", 'i', [$id]);
+            if ($oldPayment) {
+                // Restore old supplier balance and accounts first
+                modifyData("UPDATE local_suppliers SET current_balance = current_balance + ? WHERE id = ?", 'di', [$oldPayment['amount'], $oldPayment['supplier_id']]);
+                modifyData("DELETE FROM accounts WHERE reference_type = 'Supplier Payment' AND reference_id = ?", 'i', [$id]);
+            }
 
-        if ($result) {
-            setFlash('Payment of ' . formatCurrency($amount) . ' made successfully!', 'success');
+            modifyData("UPDATE supplier_payments SET supplier_id=?, payment_date=?, amount=?, payment_type=?, reference_no=?, notes=?, date_time=? WHERE id=?",
+                'isdssssi', [$supplier_id, $payment_date, $amount, $payment_type, $reference_no, $notes, $currentDateTime, $id]);
+
+            // Re-insert accounts entry
+            $accType = ($payment_type === 'cash') ? 'Cash' : 'Bank';
+            $lastEntry = getRow("SELECT balance FROM accounts WHERE account_type = ? ORDER BY id DESC LIMIT 1", 's', [$accType]);
+            $lastBalance = $lastEntry ? (float)$lastEntry['balance'] : 0;
+            $supplierRow = getRow("SELECT supplier_name FROM local_suppliers WHERE id = ?", 'i', [$supplier_id]);
+            $supplierName = $supplierRow ? $supplierRow['supplier_name'] : 'Supplier';
+            $desc = 'Payment to supplier - ' . $supplierName . ' (Updated)';
+            insertData(
+                "INSERT INTO accounts (account_date, account_type, reference_type, reference_id, description, debit, credit, balance, date_time) VALUES (?, ?, 'Supplier Payment', ?, ?, ?, 0, ?, ?)",
+                'ssisdds', [$payment_date, $accType, $id, $desc, $amount, $lastBalance + $amount, $currentDateTime]
+            );
+
+            // Update new supplier balance
+            modifyData("UPDATE local_suppliers SET current_balance = current_balance - ? WHERE id = ?", 'di', [$amount, $supplier_id]);
+
+            setFlash('Payment updated successfully!', 'success');
             header('Location: ' . $_SERVER['PHP_SELF']);
             exit;
         } else {
-            $message = 'Error adding payment!';
-            $messageType = 'danger';
+            $payment_no = generateCode('PAY');
+
+            $result = insertData("INSERT INTO supplier_payments (payment_no, supplier_id, payment_date, amount, payment_type, reference_no, notes, date_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                'sisdssss', [$payment_no, $supplier_id, $payment_date, $amount, $payment_type, $reference_no, $notes, $currentDateTime]);
+
+            if ($result) {
+                // Insert into accounts ledger
+                $accType = ($payment_type === 'cash') ? 'Cash' : 'Bank';
+                $lastEntry = getRow("SELECT balance FROM accounts WHERE account_type = ? ORDER BY id DESC LIMIT 1", 's', [$accType]);
+                $lastBalance = $lastEntry ? (float)$lastEntry['balance'] : 0;
+                $supplierRow = getRow("SELECT supplier_name FROM local_suppliers WHERE id = ?", 'i', [$supplier_id]);
+                $supplierName = $supplierRow ? $supplierRow['supplier_name'] : 'Supplier';
+                $desc = 'Payment to supplier - ' . $supplierName . ' (' . $payment_no . ')';
+                insertData(
+                    "INSERT INTO accounts (account_date, account_type, reference_type, reference_id, description, debit, credit, balance, date_time) VALUES (?, ?, 'Supplier Payment', ?, ?, ?, 0, ?, ?)",
+                    'ssisdds', [$payment_date, $accType, $result, $desc, $amount, $lastBalance + $amount, $currentDateTime]
+                );
+
+                // Update supplier current balance
+                modifyData("UPDATE local_suppliers SET current_balance = current_balance - ? WHERE id = ?", 'di', [$amount, $supplier_id]);
+
+                setFlash('Payment of ' . formatCurrency($amount) . ' made successfully!', 'success');
+                header('Location: ' . $_SERVER['PHP_SELF']);
+                exit;
+            } else {
+                $message = 'Error adding payment!';
+                $messageType = 'danger';
+            }
         }
     }
 }
@@ -74,6 +123,12 @@ $payments = getRows("SELECT p.*, s.supplier_name, s.company_name
     FROM supplier_payments p
     LEFT JOIN local_suppliers s ON p.supplier_id = s.id
     ORDER BY p.id DESC");
+
+$editPayment = null;
+if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
+    $editId = (int)$_GET['edit'];
+    $editPayment = getRow("SELECT * FROM supplier_payments WHERE id = ?", 'i', [$editId]);
+}
 
 include '../includes/header.php';
 include '../includes/sidebar.php';
@@ -133,11 +188,14 @@ include '../includes/sidebar.php';
                                         <br><small class="text-muted"><?php echo htmlspecialchars($p['company_name']); ?></small>
                                     <?php endif; ?>
                                 </td>
-                                <td><?php echo date('d-m-Y', strtotime($p['payment_date'])); ?></td>
+                                <td><?php echo formatDate($p['payment_date']); ?></td>
                                 <td class="text-success"><strong><?php echo formatCurrency($p['amount']); ?></strong></td>
                                 <td><span class="badge bg-secondary"><?php echo ucfirst(str_replace('_', ' ', $p['payment_type'])); ?></span></td>
                                 <td><?php echo htmlspecialchars($p['notes'] ?: '-'); ?></td>
                                 <td>
+                                    <a href="?edit=<?php echo $p['id']; ?>" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#paymentModal" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
                                     <a href="?delete=<?php echo $p['id']; ?>" class="btn btn-sm btn-danger delete-confirm" title="Delete">
                                         <i class="fas fa-trash"></i>
                                     </a>
@@ -156,11 +214,14 @@ include '../includes/sidebar.php';
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header" style="background:#1a2332;color:#fff;">
-                <h5 class="modal-title"><i class="fas fa-money-bill-wave me-2"></i>Make Supplier Payment</h5>
+                <h5 class="modal-title"><i class="fas fa-money-bill-wave me-2"></i><span id="modalTitle">Make Supplier Payment</span></h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST">
                 <div class="modal-body">
+                    <?php if ($editPayment): ?>
+                        <input type="hidden" name="id" value="<?php echo $editPayment['id']; ?>">
+                    <?php endif; ?>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Supplier *</label>
@@ -170,7 +231,8 @@ include '../includes/sidebar.php';
                                     <option value="<?php echo $s['id']; ?>"
                                         data-balance="<?php echo $s['current_balance']; ?>"
                                         data-opening="<?php echo $s['opening_balance']; ?>"
-                                        data-payments="<?php echo $s['payments_made']; ?>">
+                                        data-payments="<?php echo $s['payments_made']; ?>"
+                                        <?php echo ($editPayment && $editPayment['supplier_id'] == $s['id']) ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($s['supplier_name']); ?>
                                         <?php if ($s['company_name']): ?> (<?php echo htmlspecialchars($s['company_name']); ?>)<?php endif; ?>
                                     </option>
@@ -195,46 +257,36 @@ include '../includes/sidebar.php';
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Payment Date *</label>
-                            <input type="date" class="form-control" name="payment_date" value="<?php echo date('Y-m-d'); ?>" required>
+                            <input type="date" class="form-control" id="payDate" name="payment_date" value="<?php echo $editPayment ? $editPayment['payment_date'] : date('Y-m-d'); ?>" required>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Amount (PKR) *</label>
-                            <input type="number" step="0.01" class="form-control" id="payAmount" name="amount" min="0.01" required>
+                            <input type="number" step="0.01" class="form-control" id="payAmount" name="amount" min="0.01" value="<?php echo $editPayment ? $editPayment['amount'] : ''; ?>" required>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Payment Type *</label>
                             <select class="form-select" id="payType" name="payment_type" required>
-                                <option value="cash">Cash</option>
-                                <option value="bank_transfer">Bank Transfer</option>
-                                <option value="cheque">Cheque</option>
-                                <option value="online">Online</option>
+                                <option value="cash" <?php echo ($editPayment && $editPayment['payment_type'] == 'cash') ? 'selected' : ''; ?>>Cash</option>
+                                <option value="bank" <?php echo ($editPayment && $editPayment['payment_type'] == 'bank') ? 'selected' : ''; ?>>Bank</option>
                             </select>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Reference No</label>
-                            <input type="text" class="form-control" name="reference_no">
+                            <input type="text" class="form-control" name="reference_no" value="<?php echo $editPayment ? htmlspecialchars($editPayment['reference_no']) : ''; ?>">
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-4 mb-3" id="bankDiv" style="display:none">
-                            <label class="form-label">Bank Name</label>
-                            <input type="text" class="form-control" name="bank_name">
-                        </div>
-                        <div class="col-md-4 mb-3" id="chequeDiv" style="display:none">
-                            <label class="form-label">Cheque No</label>
-                            <input type="text" class="form-control" name="cheque_no">
-                        </div>
-                        <div class="col-md-8 mb-3">
+                        <div class="col-md-12 mb-3">
                             <label class="form-label">Notes</label>
-                            <input type="text" class="form-control" name="notes">
+                            <input type="text" class="form-control" name="notes" value="<?php echo $editPayment ? htmlspecialchars($editPayment['notes']) : ''; ?>">
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary px-4"><i class="fas fa-paper-plane me-2"></i>Submit Payment</button>
+                    <button type="submit" class="btn btn-primary px-4"><i class="fas fa-paper-plane me-2"></i><span id="submitBtnText">Submit Payment</span></button>
                 </div>
             </form>
         </div>
@@ -263,17 +315,26 @@ $(document).ready(function() {
         box.show();
     });
 
-    $('#payType').on('change', function() {
-        var t = $(this).val();
-        $('#bankDiv').toggle(t === 'bank_transfer' || t === 'cheque');
-        $('#chequeDiv').toggle(t === 'cheque');
-    });
-
     $('#paymentTable').DataTable({ pageLength: 25, order: [[0, 'desc']], language: { emptyTable: 'No payments found' } });
 
     $('.delete-confirm').on('click', function(e) {
         if (!confirm('Delete this payment?')) e.preventDefault();
     });
+
+    // Reset modal to new-payment mode when closed
+    $('#paymentModal').on('hidden.bs.modal', function() {
+        $('#modalTitle').text('Make Supplier Payment');
+        $('#submitBtnText').text('Submit Payment');
+        // Remove id field if present
+        $('#paymentModal input[name="id"]').remove();
+    });
+
+    <?php if (isset($_GET['edit']) && $editPayment): ?>
+        $('#paymentModal').modal('show');
+        $('#modalTitle').text('Edit Supplier Payment');
+        $('#submitBtnText').text('Update Payment');
+        $('#supplierSelect').trigger('change');
+    <?php endif; ?>
 });
 </script>
 

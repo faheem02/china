@@ -16,8 +16,10 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
     $receipt = getRow("SELECT id FROM customer_receipts WHERE id = ?", 'i', [$id]);
     if ($receipt) {
-        $r = getRow("SELECT sale_id, amount FROM customer_receipts WHERE id = ?", 'i', [$id]);
+        $r = getRow("SELECT customer_id, sale_id, amount FROM customer_receipts WHERE id = ?", 'i', [$id]);
         if ($r) {
+            // Restore customer current balance
+            modifyData("UPDATE customers SET current_balance = current_balance + ? WHERE id = ?", 'di', [$r['amount'], $r['customer_id']]);
             $sale = getRow("SELECT paid_amount, total_amount, discount FROM sales WHERE id = ?", 'i', [$r['sale_id']]);
             if ($sale) {
                 $newPaid = max(0, $sale['paid_amount'] - $r['amount']);
@@ -67,8 +69,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['customer_id'])) {
     $payment_date = $_POST['payment_date'];
     $amount = (float)($_POST['amount'] ?? 0);
     $payment_type = $_POST['payment_type'] ?? '';
-    $bank_name = trim($_POST['bank_name'] ?? '');
-    $cheque_no = trim($_POST['cheque_no'] ?? '');
     $notes = trim($_POST['notes'] ?? '');
 
     if (empty($customer_id)) {
@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['customer_id'])) {
         $receiptNo = generateCode('RCT');
 
         $result = insertData("INSERT INTO customer_receipts (customer_id, receipt_no, amount, payment_method, payment_date, notes, date_time) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            'isdsss', [$customer_id, $receiptNo, $amount, $payment_type, $payment_date, $notes, $currentDateTime]);
+            'isdssss', [$customer_id, $receiptNo, $amount, $payment_type, $payment_date, $notes, $currentDateTime]);
 
         if ($result) {
             $customerRow = getRow("SELECT customer_name FROM customers WHERE id = ?", 'i', [$customer_id]);
@@ -101,12 +101,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['customer_id'])) {
             } else {
                 $lastEntry = getRow("SELECT balance FROM accounts WHERE account_type = 'Bank' ORDER BY id DESC LIMIT 1");
                 $lastBalance = $lastEntry ? (float)$lastEntry['balance'] : 0;
-                $desc = 'Payment received from ' . $customerName . ($bank_name ? ' via ' . $bank_name : '') . ' (Receipt: ' . $receiptNo . ')';
+                $desc = 'Payment received from ' . $customerName . ' (Receipt: ' . $receiptNo . ')';
                 insertData(
                     "INSERT INTO accounts (account_date, account_type, reference_type, reference_id, description, debit, credit, balance, date_time) VALUES (?, 'Bank', 'receipt', ?, ?, 0, ?, ?, ?)",
                     'sisdds', [$payment_date, $customer_id, $desc, $amount, $lastBalance + $amount, $currentDateTime]
                 );
             }
+
+            // Update customer current balance
+            modifyData("UPDATE customers SET current_balance = current_balance - ? WHERE id = ?", 'di', [$amount, $customer_id]);
 
             setFlash('Payment received! Receipt #' . $receiptNo, 'success');
             header('Location: ' . $_SERVER['PHP_SELF']);
@@ -193,7 +196,7 @@ include '../includes/sidebar.php';
                                     <br><small class="text-muted"><?php echo htmlspecialchars($r['company_name']); ?></small>
                                 <?php endif; ?>
                             </td>
-                            <td><?php echo date('d-m-Y', strtotime($r['payment_date'])); ?></td>
+                            <td><?php echo formatDate($r['payment_date']); ?></td>
                             <td class="text-end text-success"><strong><?php echo formatCurrency($r['amount']); ?></strong></td>
                             <td><span class="badge bg-secondary"><?php echo ucfirst(str_replace('_', ' ', $r['payment_method'])); ?></span></td>
                             <td class="text-center">
@@ -274,10 +277,8 @@ include '../includes/sidebar.php';
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Payment Type *</label>
                             <select class="form-select" id="payType" name="payment_type" required>
-                                <option value="cash">Cash In</option>
-                                <option value="bank_transfer">Bank Transfer</option>
-                                <option value="cheque">Cheque</option>
-                                <option value="online">Online</option>
+                                <option value="cash">Cash</option>
+                                <option value="bank">Bank</option>
                             </select>
                         </div>
                         <div class="col-md-4 mb-3">
@@ -286,15 +287,7 @@ include '../includes/sidebar.php';
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-4 mb-3" id="bankDiv" style="display:none">
-                            <label class="form-label">Bank Name</label>
-                            <input type="text" class="form-control" name="bank_name">
-                        </div>
-                        <div class="col-md-4 mb-3" id="chequeDiv" style="display:none">
-                            <label class="form-label">Cheque No</label>
-                            <input type="text" class="form-control" name="cheque_no">
-                        </div>
-                        <div class="col-md-8 mb-3">
+                        <div class="col-md-12 mb-3">
                             <label class="form-label">Notes</label>
                             <input type="text" class="form-control" name="notes">
                         </div>
@@ -342,10 +335,8 @@ include '../includes/sidebar.php';
                     <div class="mb-3">
                         <label class="form-label">Payment Type *</label>
                         <select class="form-select" name="edit_method" id="editMethod" required>
-                            <option value="cash">Cash In</option>
-                            <option value="bank_transfer">Bank Transfer</option>
-                            <option value="cheque">Cheque</option>
-                            <option value="online">Online</option>
+                            <option value="cash">Cash</option>
+                            <option value="bank">Bank</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -384,19 +375,11 @@ $(document).ready(function() {
         box.show();
     });
 
-    $('#payType').on('change', function() {
-        var t = $(this).val();
-        $('#bankDiv').toggle(t === 'bank_transfer' || t === 'cheque');
-        $('#chequeDiv').toggle(t === 'cheque');
-    });
-
     $('#paymentTable').DataTable({ pageLength: 25, order: [[0, 'desc']], language: { emptyTable: 'No payments found' } });
 
     $('#paymentModal').on('hidden.bs.modal', function() {
         $(this).find('form')[0].reset();
         $('#balanceBox').hide();
-        $('#bankDiv').hide();
-        $('#chequeDiv').hide();
     });
 
     $('#editModal').on('hidden.bs.modal', function() {

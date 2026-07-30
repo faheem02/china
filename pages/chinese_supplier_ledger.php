@@ -183,6 +183,19 @@ include '../includes/print_header.php';
                         </thead>
                         <tbody>
                             <?php if (count($transactions) > 0): ?>
+                                <tr style="background:#e8f0fe;">
+                                    <td></td>
+                                    <td class="text-nowrap"><?php echo formatDate($fromDate); ?></td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td><span class="badge bg-secondary">Opening Balance</span></td>
+                                    <td class="text-nowrap fw-bold"><?php echo $supplier['symbol']; ?> <?php echo number_format($supplier['opening_balance'], 2); ?></td>
+                                    <td class="text-nowrap fw-bold">PKR <?php echo number_format($supplier['opening_balance'] * $exchangeRate, 2); ?></td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td class="text-nowrap"><strong><?php echo $supplier['symbol']; ?> <?php echo number_format($supplier['opening_balance'], 2); ?></strong></td>
+                                    <td></td>
+                                </tr>
                                 <?php 
                                 $counter = 1;
                                 foreach ($transactions as $transaction): 
@@ -196,7 +209,7 @@ include '../includes/print_header.php';
                                 ?>
                                     <tr>
                                         <td><?php echo $counter++; ?></td>
-                                        <td class="text-nowrap"><?php echo date('d-m-Y', strtotime($transaction['transaction_date'])); ?></td>
+                                        <td class="text-nowrap"><?php echo formatDate($transaction['transaction_date']); ?></td>
                                         <td>
                                             <a href="import_purchase_detail.php?id=<?php echo $transaction['reference_no']; ?>">
                                                 <?php echo htmlspecialchars($transaction['reference_no']); ?>

@@ -18,15 +18,15 @@ $totalRevenue = safeGetValue($totalSales, 'total');
 $totalOutstanding = safeGetValue($totalSales, 'outstanding');
 $localPurchases = getRow("SELECT COALESCE(SUM(total_amount), 0) as total FROM local_purchases");
 $localPurchasesTotal = safeGetValue($localPurchases);
-$importPurchases = getRow("SELECT COALESCE(SUM(total_amount_pkr), 0) as total FROM import_purchases");
+$importPurchases = getRow("SELECT COALESCE(SUM(total_pkr), 0) as total FROM import_purchases");
 $importPurchasesTotal = safeGetValue($importPurchases);
 $totalExpenses = getRow("SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE status = 'active'");
 $totalExpensesTotal = safeGetValue($totalExpenses);
-$custOutstanding = getRow("SELECT COALESCE(SUM(balance), 0) as total FROM sales WHERE payment_status != 'paid'");
+$custOutstanding = getRow("SELECT COALESCE(SUM(current_balance), 0) as total FROM customers WHERE status = 'active' AND current_balance > 0");
 $customerOutstandingTotal = safeGetValue($custOutstanding);
-$localPayable = getRow("SELECT COALESCE(SUM(balance), 0) as total FROM local_purchases WHERE payment_status != 'paid'");
+$localPayable = getRow("SELECT COALESCE(SUM(current_balance), 0) as total FROM local_suppliers WHERE status = 'active' AND current_balance > 0");
 $localPayableTotal = safeGetValue($localPayable);
-$chinesePayable = getRow("SELECT COALESCE(SUM(balance_pkr), 0) as total FROM import_purchases WHERE payment_status != 'paid'");
+$chinesePayable = getRow("SELECT COALESCE(SUM(s.current_balance * c.exchange_rate), 0) as total FROM chinese_suppliers s LEFT JOIN currencies c ON s.currency_id = c.id WHERE s.status = 'active' AND s.current_balance > 0");
 $chinesePayableTotal = safeGetValue($chinesePayable);
 $empSalary = getRow("SELECT COALESCE(SUM(monthly_salary), 0) as total FROM employees WHERE status = 'active'");
 $empSalaryTotal = safeGetValue($empSalary);
@@ -96,12 +96,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
 </div>
 <div class="ledger-wrapper">
 <div class="ledger-a4" id="ledgerContent">
-    <div class="inv-header">
-        <h3>BALANCE SHEET</h3>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <?php if ($company['address'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;"><?php echo htmlspecialchars($company['address']); ?></p><?php endif; ?>
-        <?php if ($company['phone'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;">Ph: <?php echo htmlspecialchars($company['phone']); ?></p><?php endif; ?>
-    </div>
+    <?php include '../includes/print_branding.php'; ?>
     <div class="inv-meta">
         <div><strong>As of:</strong> <?php echo date('d-m-Y'); ?></div>
         <div style="text-align:right"><strong>Printed:</strong> <?php echo date('d-m-Y h:i A'); ?><br><strong>User:</strong> <?php echo isset($_SESSION['full_name']) ? htmlspecialchars($_SESSION['full_name']) : 'Admin'; ?></div>
@@ -147,7 +142,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
             </div>
         </div>
     </div>
-    <div class="inv-footer"><p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p></div>
+    <div class="inv-footer"><p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo CLIENT_NAME; ?></p></div>
 </div>
 </div>
 <script>

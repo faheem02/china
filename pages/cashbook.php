@@ -34,6 +34,11 @@ if (!empty($from_date) && !empty($to_date)) {
         WHERE sp.payment_type = 'cash' AND sp.payment_date >= ? AND sp.payment_date <= ?";
     $cashOutSupplierRows = getRows($cashOutSupplierSql, 'ss', [$from_date, $to_date]);
 
+    $cashOutChineseSql = "SELECT cp.payment_date as txn_date, CONCAT('Payment to Chinese supplier - ', cp.payment_no) as description, cp.payment_no as reference, 0 as cash_in, cp.amount_pkr as cash_out
+        FROM chinese_supplier_payments cp
+        WHERE cp.payment_type = 'cash' AND cp.status = 'completed' AND cp.payment_date >= ? AND cp.payment_date <= ?";
+    $cashOutChineseRows = getRows($cashOutChineseSql, 'ss', [$from_date, $to_date]);
+
     $cashOutExpenseSql = "SELECT e.expense_date as txn_date, CONCAT('Expense - ', e.category, ' - ', e.expense_no) as description, e.expense_no as reference, 0 as cash_in, e.amount as cash_out
         FROM expenses e
         WHERE e.status = 'active' AND e.expense_date >= ? AND e.expense_date <= ?";
@@ -56,7 +61,7 @@ if (!empty($from_date) && !empty($to_date)) {
         WHERE pt.type = 'paid' AND pt.payment_method = 'cash' AND pt.transaction_date >= ? AND pt.transaction_date <= ?";
     $partyPaidRows = getRows($partyPaidSql, 'ss', [$from_date, $to_date]);
 
-    $allTransactions = array_merge($cashInRows, $cashOutSupplierRows, $cashOutExpenseRows, $cashOutEmpRows, $partyReceivedRows, $partyPaidRows);
+    $allTransactions = array_merge($cashInRows, $cashOutSupplierRows, $cashOutChineseRows, $cashOutExpenseRows, $cashOutEmpRows, $partyReceivedRows, $partyPaidRows);
 
     usort($allTransactions, function($a, $b) {
         return strcmp($a['txn_date'], $b['txn_date']);
@@ -85,6 +90,12 @@ $preFromOutSupplier = "SELECT COALESCE(SUM(sp.amount), 0) as total_out
 $preFromOutSupplierRow = getRow($preFromOutSupplier, 's', [$from_date]);
 $totalOutSupplierBefore = $preFromOutSupplierRow ? (float)$preFromOutSupplierRow['total_out'] : 0;
 
+$preFromOutChinese = "SELECT COALESCE(SUM(cp.amount_pkr), 0) as total_out
+    FROM chinese_supplier_payments cp
+    WHERE cp.payment_type = 'cash' AND cp.status = 'completed' AND cp.payment_date < ?";
+$preFromOutChineseRow = getRow($preFromOutChinese, 's', [$from_date]);
+$totalOutChineseBefore = $preFromOutChineseRow ? (float)$preFromOutChineseRow['total_out'] : 0;
+
 $preFromOutExpense = "SELECT COALESCE(SUM(e.amount), 0) as total_out
     FROM expenses e
     WHERE e.status = 'active' AND e.expense_date < ?";
@@ -109,7 +120,7 @@ $prePartyPaid = "SELECT COALESCE(SUM(pt.amount), 0) as total_out
 $prePartyPaidRow = getRow($prePartyPaid, 's', [$from_date]);
 $totalPartyPaidBefore = $prePartyPaidRow ? (float)$prePartyPaidRow['total_out'] : 0;
 
-$openingBalance = $totalCashInBefore - $totalOutSupplierBefore - $totalOutExpenseBefore - $totalOutEmpBefore + $totalPartyReceivedBefore - $totalPartyPaidBefore;
+$openingBalance = $totalCashInBefore - $totalOutSupplierBefore - $totalOutChineseBefore - $totalOutExpenseBefore - $totalOutEmpBefore + $totalPartyReceivedBefore - $totalPartyPaidBefore;
 $closingBalance = $openingBalance + $totalCashIn - $totalCashOut;
 
 include '../includes/header.php';
@@ -218,7 +229,7 @@ include '../includes/print_header.php';
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span><i class="fas fa-list me-2"></i>Cash Transactions
-                <span class="ms-2 text-muted">(<?php echo date('d-m-Y', strtotime($from_date)); ?> to <?php echo date('d-m-Y', strtotime($to_date)); ?>)</span></span>
+                <span class="ms-2 text-muted">(<?php echo formatDate($from_date); ?> to <?php echo formatDate($to_date); ?>)</span></span>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -244,7 +255,7 @@ include '../includes/print_header.php';
                                     ?>
                                     <tr>
                                         <td><?php echo $counter++; ?></td>
-                                        <td><?php echo date('d-m-Y', strtotime($txn['txn_date'])); ?></td>
+                                        <td><?php echo formatDate($txn['txn_date']); ?></td>
                                         <td><?php echo htmlspecialchars($txn['description']); ?></td>
                                         <td><strong><?php echo htmlspecialchars($txn['reference']); ?></strong></td>
                                         <td class="text-success fw-bold">

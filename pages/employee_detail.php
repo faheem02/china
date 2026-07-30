@@ -18,7 +18,7 @@ if (!$emp) {
     exit;
 }
 
-$joiningDate = $emp['joining_date'] ? date('d-m-Y', strtotime($emp['joining_date'])) : 'N/A';
+$joiningDate = $emp['joining_date'] ? formatDate($emp['joining_date']) : 'N/A';
 
 // Bills
 $bills = getRows("SELECT * FROM employee_payables WHERE employee_id = ? ORDER BY id DESC", 'i', [$empId]);
@@ -209,7 +209,7 @@ include '../includes/sidebar.php';
                             <tbody>
                                 <?php foreach ($payments as $p): ?>
                                     <tr>
-                                        <td><?php echo date('d-m-Y', strtotime($p['payment_date'])); ?></td>
+                                        <td><?php echo formatDate($p['payment_date']); ?></td>
                                         <td><strong><?php echo htmlspecialchars($p['payment_no']); ?></strong></td>
                                         <td><span class="badge bg-secondary"><?php echo ucfirst($p['payment_type']); ?></span></td>
                                         <td><strong><?php echo formatCurrency($p['amount']); ?></strong></td>

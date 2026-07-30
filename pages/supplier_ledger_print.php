@@ -34,6 +34,26 @@ $purchases = getRows("SELECT
     AND purchase_date BETWEEN ? AND ?
     ORDER BY purchase_date ASC, id ASC", 'iss', [$supplierId, $fromDate, $toDate]);
 
+$payments = getRows("SELECT 
+    'Payment' as transaction_type,
+    payment_no as reference_no,
+    payment_date as transaction_date,
+    amount as amount,
+    amount as paid_amount,
+    0 as balance,
+    'paid' as payment_status,
+    'completed' as status,
+    '' as invoice_no
+    FROM supplier_payments 
+    WHERE supplier_id = ? 
+    AND payment_date BETWEEN ? AND ?
+    ORDER BY payment_date ASC, id ASC", 'iss', [$supplierId, $fromDate, $toDate]);
+
+$transactions = array_merge($purchases, $payments);
+usort($transactions, function($a, $b) {
+    return strtotime($a['transaction_date']) - strtotime($b['transaction_date']);
+});
+
 $runningBalance = $supplier['opening_balance'];
 
 $company = getRow("SELECT * FROM company_settings LIMIT 1");
@@ -93,12 +113,7 @@ body { background: #f0f2f5; }
 
 <div class="ledger-wrapper">
 <div class="ledger-a4" id="ledgerContent">
-    <div class="inv-header">
-        <h3>SUPPLIER LEDGER</h3>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <?php if ($company['address'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;"><?php echo htmlspecialchars($company['address']); ?></p><?php endif; ?>
-        <?php if ($company['phone'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;">Ph: <?php echo htmlspecialchars($company['phone']); ?></p><?php endif; ?>
-    </div>
+    <?php include '../includes/print_branding.php'; ?>
 
     <div class="inv-meta">
         <div>
@@ -107,7 +122,7 @@ body { background: #f0f2f5; }
             <?php if ($supplier['phone'] ?? null): ?><strong>Phone:</strong> <?php echo htmlspecialchars($supplier['phone']); ?><?php endif; ?>
         </div>
         <div style="text-align:right">
-            <strong>Period:</strong> <?php echo date('d-m-Y', strtotime($fromDate)); ?> to <?php echo date('d-m-Y', strtotime($toDate)); ?><br>
+            <strong>Period:</strong> <?php echo formatDate($fromDate); ?> to <?php echo formatDate($toDate); ?><br>
             <strong>Printed:</strong> <?php echo date('d-m-Y h:i A'); ?>
         </div>
     </div>
@@ -149,7 +164,7 @@ body { background: #f0f2f5; }
         <tbody>
             <tr style="background:#f0f0f0;">
                 <td></td>
-                <td><?php echo date('d-m-Y'); ?></td>
+                <td><?php echo formatDate($supplier['date_time']); ?></td>
                 <td><strong>Opening Balance</strong></td>
                 <td></td>
                 <td></td>
@@ -159,25 +174,37 @@ body { background: #f0f2f5; }
                 <td style="text-align:right"><strong><?php echo formatCurrency($supplier['opening_balance']); ?></strong></td>
                 <td></td>
             </tr>
-            <?php if (count($purchases) > 0): ?>
+            <?php if (count($transactions) > 0): ?>
                 <?php $counter = 1; ?>
-                <?php foreach ($purchases as $purchase): ?>
-                    <?php $runningBalance += $purchase['balance']; ?>
+                <?php foreach ($transactions as $txn): ?>
+                    <?php 
+                    if ($txn['transaction_type'] === 'Purchase') {
+                        $runningBalance += $txn['balance'];
+                    } else {
+                        $runningBalance -= $txn['amount'];
+                    }
+                    ?>
                     <tr>
                         <td><?php echo $counter++; ?></td>
-                        <td><?php echo date('d-m-Y', strtotime($purchase['transaction_date'])); ?></td>
-                        <td><strong><?php echo htmlspecialchars($purchase['reference_no']); ?></strong></td>
-                        <td><?php echo htmlspecialchars($purchase['invoice_no']); ?></td>
-                        <td><span class="badge bg-primary">Purchase</span></td>
-                        <td style="text-align:right"><?php echo formatCurrency($purchase['amount']); ?></td>
-                        <td style="text-align:right"><?php echo formatCurrency($purchase['paid_amount']); ?></td>
-                        <td style="text-align:right"><?php echo formatCurrency($purchase['balance']); ?></td>
+                        <td><?php echo formatDate($txn['transaction_date']); ?></td>
+                        <td><strong><?php echo htmlspecialchars($txn['reference_no']); ?></strong></td>
+                        <td><?php echo htmlspecialchars($txn['invoice_no'] ?: '-'); ?></td>
+                        <td>
+                            <?php if ($txn['transaction_type'] === 'Purchase'): ?>
+                                <span class="badge bg-primary">Purchase</span>
+                            <?php else: ?>
+                                <span class="badge bg-danger">Payment</span>
+                            <?php endif; ?>
+                        </td>
+                        <td style="text-align:right"><?php echo formatCurrency($txn['amount']); ?></td>
+                        <td style="text-align:right"><?php echo formatCurrency($txn['paid_amount']); ?></td>
+                        <td style="text-align:right"><?php echo formatCurrency($txn['balance']); ?></td>
                         <td style="text-align:right; color: <?php echo $runningBalance > 0 ? '#dc3545' : '#198754'; ?>; font-weight:700;">
                             <?php echo formatCurrency($runningBalance); ?>
                         </td>
                         <td>
-                            <span class="badge badge-status badge-<?php echo strtolower($purchase['payment_status']); ?>">
-                                <?php echo ucfirst($purchase['payment_status']); ?>
+                            <span class="badge badge-status badge-<?php echo strtolower($txn['payment_status']); ?>">
+                                <?php echo ucfirst($txn['payment_status']); ?>
                             </span>
                         </td>
                     </tr>
@@ -191,9 +218,9 @@ body { background: #f0f2f5; }
         <tfoot>
             <tr>
                 <th colspan="5" style="text-align:right">TOTAL</th>
-                <th style="text-align:right"><?php echo formatCurrency(array_sum(array_column($purchases, 'amount'))); ?></th>
-                <th style="text-align:right"><?php echo formatCurrency(array_sum(array_column($purchases, 'paid_amount'))); ?></th>
-                <th style="text-align:right"><?php echo formatCurrency(array_sum(array_column($purchases, 'balance'))); ?></th>
+                <th style="text-align:right"><?php echo formatCurrency(array_sum(array_column($transactions, 'amount'))); ?></th>
+                <th style="text-align:right"><?php echo formatCurrency(array_sum(array_column($transactions, 'paid_amount'))); ?></th>
+                <th style="text-align:right"><?php echo formatCurrency(array_sum(array_column($transactions, 'balance'))); ?></th>
                 <th style="text-align:right; color: <?php echo $runningBalance > 0 ? '#dc3545' : '#198754'; ?>;">
                     <?php echo formatCurrency($runningBalance); ?>
                 </th>
@@ -203,7 +230,7 @@ body { background: #f0f2f5; }
     </table>
 
     <div class="inv-footer">
-        <p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
+        <p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo CLIENT_NAME; ?></p>
     </div>
 </div>
 </div>

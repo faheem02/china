@@ -13,11 +13,20 @@ requireLogin();
 $pageTitle = 'Suppliers Summary';
 $message = '';
 $messageType = '';
+$dbError = '';
+
+// Default values in case query fails
+$suppliers = [];
+$totalBalance = 0;
+$totalPurchases = 0;
+$totalPaid = 0;
+$totalOutstanding = 0;
 
 // Get date filters
 $asOnDate = isset($_GET['as_on_date']) ? $_GET['as_on_date'] : date('Y-m-d');
 
 // Get all suppliers with their balances
+try {
 $sql = "SELECT 
             s.*,
             (SELECT COUNT(*) FROM local_purchases WHERE supplier_id = s.id) as total_purchases,
@@ -42,14 +51,36 @@ foreach ($suppliers as $supplier) {
     $totalPaid += $supplier['total_paid_amount'];
     $totalOutstanding += $supplier['total_balance'];
 }
+} catch (\Throwable $e) {
+    $dbError = $e->getMessage();
+    $suppliers = [];
+}
 
 // Include header
 include '../includes/header.php';
 include '../includes/sidebar.php';
-include '../includes/print_header.php';
+
+try {
+    include '../includes/print_header.php';
+} catch (\Throwable $e) {
+    $dbError = 'print_header: ' . $e->getMessage();
+}
+
+$hasSuppliers = is_array($suppliers) && count($suppliers) > 0;
 ?>
 
-<!-- Page Content -->
+<?php if ($dbError): ?>
+<div class="alert alert-danger m-3" role="alert">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <strong>Database Error:</strong> <?php echo htmlspecialchars($dbError); ?>
+</div>
+<?php endif; ?>
+<?php if (!$hasSuppliers && !$dbError): ?>
+<div class="alert alert-warning m-3" role="alert">
+    <i class="fas fa-info-circle me-2"></i> No suppliers data found (query returned empty).
+</div>
+<?php endif; ?>
+
 <div class="row">
     <div class="col-12">
         <?php if ($message): ?>
@@ -150,7 +181,6 @@ include '../includes/print_header.php';
                                 <th>#</th>
                                 <th>Supplier Name</th>
                                 <th>Company</th>
-                                <th>Contact</th>
                                 <th>Phone</th>
                                 <th>Total Purchases</th>
                                 <th>Total Paid</th>
@@ -170,7 +200,6 @@ include '../includes/print_header.php';
                                             <strong><?php echo htmlspecialchars($supplier['supplier_name']); ?></strong>
                                         </td>
                                         <td><?php echo htmlspecialchars($supplier['company_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($supplier['contact_person']); ?></td>
                                         <td><?php echo htmlspecialchars($supplier['phone']); ?></td>
                                         <td><?php echo formatCurrency($supplier['total_purchase_amount']); ?></td>
                                         <td><?php echo formatCurrency($supplier['total_paid_amount']); ?></td>
@@ -210,7 +239,7 @@ include '../includes/print_header.php';
                         </tbody>
                         <tfoot class="table-primary">
                             <tr>
-                                <th colspan="5" class="text-end">Total</th>
+                                <th colspan="4" class="text-end">Total</th>
                                 <th><?php echo formatCurrency($totalPurchases); ?></th>
                                 <th><?php echo formatCurrency($totalPaid); ?></th>
                                 <th><?php echo formatCurrency($totalOutstanding); ?></th>

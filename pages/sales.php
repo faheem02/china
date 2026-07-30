@@ -16,6 +16,8 @@ if ($flash) {
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
     
+    $sale = getRow("SELECT customer_id, customer_type, balance FROM sales WHERE id = ?", 'i', [$id]);
+    
     $sql = "SELECT product_id, quantity FROM sale_items WHERE sale_id = ?";
     $items = getRows($sql, 'i', [$id]);
     
@@ -29,6 +31,10 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
         foreach ($items as $item) {
             $sql = "UPDATE finished_goods SET current_stock = current_stock + ? WHERE id = ?";
             modifyData($sql, 'di', [$item['quantity'], $item['product_id']]);
+        }
+
+        if ($sale && $sale['customer_type'] === 'credit' && $sale['customer_id'] > 0 && $sale['balance'] > 0) {
+            modifyData("UPDATE customers SET current_balance = current_balance - ? WHERE id = ?", 'di', [$sale['balance'], $sale['customer_id']]);
         }
         
         setFlash('Sale deleted successfully! Stock restored.', 'success');
@@ -81,7 +87,7 @@ include '../includes/sidebar.php';
                                 <th>#</th>
                                 <th>Sale No</th>
                                 <th>Customer</th>
-                                <th>Date</th>
+                                <th style="white-space:nowrap;min-width:100px;">Date</th>
                                 <th>Total (PKR)</th>
                                 <th>Discount</th>
                                 <th>Net Amount</th>
@@ -102,7 +108,7 @@ include '../includes/sidebar.php';
                                         <td><?php echo $counter++; ?></td>
                                         <td><strong><?php echo htmlspecialchars($sale['sale_no']); ?></strong></td>
                                         <td><?php echo htmlspecialchars($sale['customer_name'] ?: 'N/A'); ?></td>
-                                        <td><?php echo date('d-m-Y', strtotime($sale['sale_date'])); ?></td>
+                                        <td><?php echo formatDate($sale['sale_date']); ?></td>
                                         <td><?php echo number_format($sale['total_amount'], 2); ?></td>
                                         <td><?php echo number_format($sale['discount'] ?? 0, 2); ?></td>
                                         <td><strong><?php echo number_format($sale['net_amount'], 2); ?></strong></td>

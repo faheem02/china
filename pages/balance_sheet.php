@@ -39,23 +39,23 @@ $localPurchases = getRow("SELECT COALESCE(SUM(total_amount), 0) as total FROM lo
 $localPurchasesTotal = safeGetValue($localPurchases);
 
 // ── Total Import Purchases (PKR equivalent) ──
-$importPurchases = getRow("SELECT COALESCE(SUM(total_amount_pkr), 0) as total FROM import_purchases");
+$importPurchases = getRow("SELECT COALESCE(SUM(total_pkr), 0) as total FROM import_purchases");
 $importPurchasesTotal = safeGetValue($importPurchases);
 
 // ── Total Expenses ──
 $totalExpenses = getRow("SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE status = 'active'");
 $totalExpensesTotal = safeGetValue($totalExpenses);
 
-// ── Total Customer Outstanding ──
-$custOutstanding = getRow("SELECT COALESCE(SUM(balance), 0) as total FROM sales WHERE payment_status != 'paid'");
+// ── Total Customer Outstanding (from customer current_balance, updated on receipt) ──
+$custOutstanding = getRow("SELECT COALESCE(SUM(current_balance), 0) as total FROM customers WHERE status = 'active' AND current_balance > 0");
 $customerOutstandingTotal = safeGetValue($custOutstanding);
 
-// ── Total Supplier Payable (Local) ──
-$localPayable = getRow("SELECT COALESCE(SUM(balance), 0) as total FROM local_purchases WHERE payment_status != 'paid'");
+// ── Total Supplier Payable (Local - from supplier current_balance, updated on payment) ──
+$localPayable = getRow("SELECT COALESCE(SUM(current_balance), 0) as total FROM local_suppliers WHERE status = 'active' AND current_balance > 0");
 $localPayableTotal = safeGetValue($localPayable);
 
-// ── Total Supplier Payable (Chinese - PKR) ──
-$chinesePayable = getRow("SELECT COALESCE(SUM(balance_pkr), 0) as total FROM import_purchases WHERE payment_status != 'paid'");
+// ── Total Supplier Payable (Chinese - from supplier current_balance in CNY, converted to PKR) ──
+$chinesePayable = getRow("SELECT COALESCE(SUM(s.current_balance * c.exchange_rate), 0) as total FROM chinese_suppliers s LEFT JOIN currencies c ON s.currency_id = c.id WHERE s.status = 'active' AND s.current_balance > 0");
 $chinesePayableTotal = safeGetValue($chinesePayable);
 
 // ── Total Employees Salary Payable ──

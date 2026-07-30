@@ -167,7 +167,7 @@ include '../includes/print_header.php';
                                 <?php foreach ($entries as $entry): ?>
                                     <tr>
                                         <td><?php echo $counter++; ?></td>
-                                        <td><?php echo date('d-m-Y', strtotime($entry['account_date'])); ?></td>
+                                        <td><?php echo formatDate($entry['account_date']); ?></td>
                                         <td><?php echo htmlspecialchars($entry['account_type']); ?></td>
                                         <td>
                                             <?php if ($entry['reference_type']): ?>
@@ -182,12 +182,6 @@ include '../includes/print_header.php';
                                         <td><strong><?php echo formatCurrency($entry['balance']); ?></strong></td>
                                     </tr>
                                 <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="8" class="text-center text-muted py-3">
-                                        <i class="fas fa-info-circle me-2"></i>No ledger entries found
-                                    </td>
-                                </tr>
                             <?php endif; ?>
                         </tbody>
                     </table>

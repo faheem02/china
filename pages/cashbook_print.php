@@ -121,17 +121,12 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
 </div>
 <div class="ledger-wrapper">
 <div class="ledger-a4" id="ledgerContent">
-    <div class="inv-header">
-        <h3>CASH BOOK</h3>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <?php if ($company['address'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;"><?php echo htmlspecialchars($company['address']); ?></p><?php endif; ?>
-        <?php if ($company['phone'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;">Ph: <?php echo htmlspecialchars($company['phone']); ?></p><?php endif; ?>
-    </div>
+    <?php include '../includes/print_branding.php'; ?>
     <div class="inv-meta">
-        <div><strong>Period:</strong> <?php echo date('d-m-Y', strtotime($from_date)); ?> to <?php echo date('d-m-Y', strtotime($to_date)); ?></div>
+        <div><strong>Period:</strong> <?php echo formatDate($from_date); ?> to <?php echo formatDate($to_date); ?></div>
         <div style="text-align:right"><strong>Printed:</strong> <?php echo date('d-m-Y h:i A'); ?><br><strong>User:</strong> <?php echo isset($_SESSION['full_name']) ? htmlspecialchars($_SESSION['full_name']) : 'Admin'; ?></div>
     </div>
-    <div class="inv-title">CASH BOOK STATEMENT | <?php echo date('d-m-Y', strtotime($from_date)); ?> to <?php echo date('d-m-Y', strtotime($to_date)); ?></div>
+    <div class="inv-title">CASH BOOK STATEMENT | <?php echo formatDate($from_date); ?> to <?php echo formatDate($to_date); ?></div>
     <div class="summary-box">
         <div class="summary-item"><div class="label">Opening Balance</div><div class="amount"><?php echo formatCurrency($openingBalance); ?></div></div>
         <div class="summary-item success"><div class="label">Total Cash In</div><div class="amount"><?php echo formatCurrency($totalCashIn); ?></div></div>
@@ -141,14 +136,14 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
     <table>
         <thead><tr><th>#</th><th>Date</th><th>Description</th><th>Reference</th><th style="text-align:right">Cash In (PKR)</th><th style="text-align:right">Cash Out (PKR)</th><th style="text-align:right">Balance (PKR)</th></tr></thead>
         <tbody>
-            <tr class="opening-row"><td></td><td><?php echo date('d-m-Y'); ?></td><td><strong>Opening Balance</strong></td><td></td><td style="text-align:right"></td><td style="text-align:right"></td><td style="text-align:right" class="<?php echo $openingBalance >= 0 ? 'text-balance-pos' : 'text-balance-neg'; ?>"><strong><?php echo formatCurrency($openingBalance); ?></strong></td></tr>
+            <tr class="opening-row"><td></td><td><?php echo formatDate($from_date); ?></td><td><strong>Opening Balance</strong></td><td></td><td style="text-align:right"></td><td style="text-align:right"></td><td style="text-align:right" class="<?php echo $openingBalance >= 0 ? 'text-balance-pos' : 'text-balance-neg'; ?>"><strong><?php echo formatCurrency($openingBalance); ?></strong></td></tr>
             <?php $runningBalance = $openingBalance; $counter = 1; ?>
             <?php if (count($allTransactions) > 0): ?>
                 <?php foreach ($allTransactions as $txn): ?>
                     <?php $runningBalance += (float)$txn['cash_in'] - (float)$txn['cash_out']; ?>
                     <tr>
                         <td><?php echo $counter++; ?></td>
-                        <td><?php echo date('d-m-Y', strtotime($txn['txn_date'])); ?></td>
+                        <td><?php echo formatDate($txn['txn_date']); ?></td>
                         <td><?php echo htmlspecialchars($txn['description']); ?></td>
                         <td><strong><?php echo htmlspecialchars($txn['reference']); ?></strong></td>
                         <td style="text-align:right"><?php if ((float)$txn['cash_in'] > 0): ?><span class="text-cash-in"><?php echo formatCurrency($txn['cash_in']); ?></span><?php else: ?>-<?php endif; ?></td>
@@ -162,7 +157,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
         </tbody>
         <tfoot><tr class="closing-row"><th colspan="4" style="text-align:right">TOTAL</th><th style="text-align:right" class="text-cash-in"><?php echo formatCurrency($totalCashIn); ?></th><th style="text-align:right" class="text-cash-out"><?php echo formatCurrency($totalCashOut); ?></th><th style="text-align:right" class="<?php echo $closingBalance >= 0 ? 'text-balance-pos' : 'text-balance-neg'; ?>"><?php echo formatCurrency($closingBalance); ?></th></tr></tfoot>
     </table>
-    <div class="inv-footer"><p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p></div>
+    <div class="inv-footer"><p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo CLIENT_NAME; ?></p></div>
 </div>
 </div>
 <script>

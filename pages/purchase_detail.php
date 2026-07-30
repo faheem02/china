@@ -28,6 +28,24 @@ if ($type === 'local') {
         WHERE li.purchase_id = ?", 'i', [$id]);
 
     $backPage = 'local_purchases.php';
+} elseif ($type === 'import') {
+    $purchase = getRow("SELECT p.*, s.supplier_name, s.company_name, s.phone as sup_phone
+        FROM import_purchases p LEFT JOIN chinese_suppliers s ON p.supplier_id = s.id WHERE p.id = ?", 'i', [$id]);
+    if (!$purchase) { header('Location: import_purchases.php'); exit; }
+
+    $items = getRows("SELECT li.*,
+        li.unit_price_cny as unit_price,
+        li.total_cny as total,
+        CASE WHEN li.item_type = 'finished_good' THEN fg.product_code WHEN li.item_type = 'raw_material' THEN rm.material_code ELSE rm.material_code END AS material_code,
+        CASE WHEN li.item_type = 'finished_good' THEN fg.product_name WHEN li.item_type = 'raw_material' THEN rm.material_name ELSE rm.material_name END AS material_name,
+        CASE WHEN li.item_type = 'finished_good' THEN fg.unit WHEN li.item_type = 'raw_material' THEN rm.unit ELSE rm.unit END AS unit,
+        li.item_type
+        FROM import_purchase_items li
+        LEFT JOIN raw_materials rm ON li.material_id = rm.id AND li.item_type = 'raw_material'
+        LEFT JOIN finished_goods fg ON li.material_id = fg.id AND li.item_type = 'finished_good'
+        WHERE li.purchase_id = ?", 'i', [$id]);
+
+    $backPage = 'import_purchases.php';
 } else {
     header('Location: local_purchases.php');
     exit;
@@ -41,7 +59,7 @@ include '../includes/sidebar.php';
     <div class="col-12">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="<?php echo $backPage; ?>">Local Purchases</a></li>
+                <li class="breadcrumb-item"><a href="<?php echo $backPage; ?>"><?php echo $type === 'import' ? 'Import Purchases' : 'Local Purchases'; ?></a></li>
                 <li class="breadcrumb-item active">Purchase Detail</li>
             </ol>
         </nav>
@@ -51,8 +69,8 @@ include '../includes/sidebar.php';
 <div class="row mb-3">
     <div class="col-12">
         <a href="<?php echo $backPage; ?>" class="btn btn-secondary btn-sm me-2"><i class="fas fa-arrow-left me-1"></i>Back to List</a>
-        <a href="add_local_purchase.php?id=<?php echo $id; ?>" class="btn btn-warning btn-sm me-2"><i class="fas fa-edit me-1"></i>Edit</a>
-        <a href="purchase_print.php?id=<?php echo $id; ?>" class="btn btn-success btn-sm" target="_blank"><i class="fas fa-print me-1"></i>Print</a>
+        <a href="<?php echo $type === 'import' ? 'add_import_purchase.php?edit=' . $id : 'add_local_purchase.php?id=' . $id; ?>" class="btn btn-warning btn-sm me-2"><i class="fas fa-edit me-1"></i>Edit</a>
+        <a href="<?php echo $type === 'import' ? 'import_purchase_print.php?id=' . $id : 'purchase_print.php?id=' . $id; ?>" class="btn btn-success btn-sm" target="_blank"><i class="fas fa-print me-1"></i>Print</a>
     </div>
 </div>
 
@@ -72,7 +90,7 @@ include '../includes/sidebar.php';
                     <?php if ($purchase['sup_phone']): ?>
                     <tr><th>Phone</th><td><?php echo htmlspecialchars($purchase['sup_phone']); ?></td></tr>
                     <?php endif; ?>
-                    <tr><th>Date</th><td><?php echo date('d-m-Y', strtotime($purchase['purchase_date'])); ?></td></tr>
+                    <tr><th>Date</th><td><?php echo formatDate($purchase['purchase_date']); ?></td></tr>
                     <tr><th>Invoice No</th><td><?php echo htmlspecialchars($purchase['invoice_no']); ?></td></tr>
                     <tr><th>Payment Method</th><td><?php echo ucfirst($purchase['payment_method'] ?? 'Credit'); ?></td></tr>
                     <tr><th>Status</th>
@@ -88,19 +106,37 @@ include '../includes/sidebar.php';
                 <i class="fas fa-calculator me-2"></i>Payment Summary
             </div>
             <div class="card-body text-center">
-                <h6 class="text-muted">Grand Total</h6>
-                <h3 class="text-primary"><?php echo formatCurrency($purchase['total_amount']); ?></h3>
-                <hr>
-                <div class="row">
-                    <div class="col-6">
-                        <h6 class="text-muted">Paid</h6>
-                        <h5 class="text-success"><?php echo formatCurrency($purchase['paid_amount']); ?></h5>
+                <?php if ($type === 'import'): ?>
+                    <h6 class="text-muted">Grand Total (CNY)</h6>
+                    <h3 class="text-primary"><?php echo formatCurrency($purchase['grand_total_cny']); ?></h3>
+                    <h6 class="text-muted">Grand Total (PKR)</h6>
+                    <h4 class="text-secondary"><?php echo formatCurrency($purchase['grand_total_pkr']); ?></h4>
+                    <hr>
+                    <div class="row">
+                        <div class="col-6">
+                            <h6 class="text-muted">Paid (CNY)</h6>
+                            <h5 class="text-success"><?php echo formatCurrency($purchase['paid_amount_cny']); ?></h5>
+                        </div>
+                        <div class="col-6">
+                            <h6 class="text-muted">Balance (CNY)</h6>
+                            <h5 class="<?php echo $purchase['balance_cny'] > 0 ? 'text-danger' : 'text-success'; ?>"><?php echo formatCurrency($purchase['balance_cny']); ?></h5>
+                        </div>
                     </div>
-                    <div class="col-6">
-                        <h6 class="text-muted">Balance</h6>
-                        <h5 class="<?php echo $purchase['balance'] > 0 ? 'text-danger' : 'text-success'; ?>"><?php echo formatCurrency($purchase['balance']); ?></h5>
+                <?php else: ?>
+                    <h6 class="text-muted">Grand Total</h6>
+                    <h3 class="text-primary"><?php echo formatCurrency($purchase['total_amount']); ?></h3>
+                    <hr>
+                    <div class="row">
+                        <div class="col-6">
+                            <h6 class="text-muted">Paid</h6>
+                            <h5 class="text-success"><?php echo formatCurrency($purchase['paid_amount']); ?></h5>
+                        </div>
+                        <div class="col-6">
+                            <h6 class="text-muted">Balance</h6>
+                            <h5 class="<?php echo $purchase['balance'] > 0 ? 'text-danger' : 'text-success'; ?>"><?php echo formatCurrency($purchase['balance']); ?></h5>
+                        </div>
                     </div>
-                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -144,7 +180,7 @@ include '../includes/sidebar.php';
                                 <td colspan="4"><strong>Total Items: <?php echo count($items); ?></strong></td>
                                 <td style="text-align:center"><strong><?php echo number_format($totalQty, 2); ?></strong></td>
                                 <td style="text-align:right"><strong>Grand Total:</strong></td>
-                                <td style="text-align:right"><strong><?php echo formatCurrency($purchase['total_amount']); ?></strong></td>
+                                <td style="text-align:right"><strong><?php echo $type === 'import' ? formatCurrency($purchase['grand_total_cny']) : formatCurrency($purchase['total_amount']); ?></strong></td>
                             </tr>
                         </tfoot>
                     </table>

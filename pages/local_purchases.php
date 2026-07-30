@@ -15,9 +15,9 @@ if ($flash) {
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
     $items = getRows("SELECT material_id, quantity, item_type FROM local_purchase_items WHERE purchase_id = ?", 'i', [$id]);
+    modifyData("DELETE FROM local_purchase_items WHERE purchase_id = ?", 'i', [$id]);
     $result = modifyData("DELETE FROM local_purchases WHERE id = ?", 'i', [$id]);
     if ($result !== false) {
-        modifyData("DELETE FROM local_purchase_items WHERE purchase_id = ?", 'i', [$id]);
         foreach ($items as $item) {
             if ($item['item_type'] === 'finished_good') {
                 modifyData("UPDATE finished_goods SET current_stock = current_stock - ? WHERE id = ?", 'di', [$item['quantity'], $item['material_id']]);
@@ -87,7 +87,7 @@ include '../includes/sidebar.php';
                                                 <?php echo htmlspecialchars($purchase['supplier_name']); ?>
                                             </a>
                                         </td>
-                                        <td><?php echo date('d-m-Y', strtotime($purchase['purchase_date'])); ?></td>
+                                        <td><?php echo formatDate($purchase['purchase_date']); ?></td>
                                         <td><?php echo htmlspecialchars($purchase['invoice_no']); ?></td>
                                         <td><?php echo formatCurrency($purchase['total_amount']); ?></td>
                                         <td><?php echo formatCurrency($purchase['paid_amount']); ?></td>

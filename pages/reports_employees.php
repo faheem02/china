@@ -68,7 +68,7 @@ $totalUnpaidBills = array_sum(array_column($unpaidBills, 'balance'));
     <div class="card-header"><i class="fas fa-money-bill-wave me-2"></i>Payment History (Period)</div>
     <div class="card-body"><div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Date</th><th>Voucher</th><th>Employee</th><th>Type</th><th class="text-end">Amount</th><th>Notes</th></tr></thead><tbody>
     <?php foreach($periodPayments as $pp):?>
-    <tr><td><?php echo date('d-m-Y', strtotime($pp['payment_date']));?></td><td><strong><?php echo htmlspecialchars($pp['payment_no']);?></strong></td><td><?php echo htmlspecialchars($pp['employee_name']);?></td><td><span class="badge bg-secondary"><?php echo ucfirst($pp['payment_type']);?></span></td><td class="text-end fw-bold"><?php echo formatCurrency($pp['amount']);?></td><td><?php echo htmlspecialchars($pp['notes']?:'-');?></td></tr>
+    <tr><td><?php echo formatDate($pp['payment_date']);?></td><td><strong><?php echo htmlspecialchars($pp['payment_no']);?></strong></td><td><?php echo htmlspecialchars($pp['employee_name']);?></td><td><span class="badge bg-secondary"><?php echo ucfirst($pp['payment_type']);?></span></td><td class="text-end fw-bold"><?php echo formatCurrency($pp['amount']);?></td><td><?php echo htmlspecialchars($pp['notes']?:'-');?></td></tr>
     <?php endforeach;?></tbody></table></div></div>
 </div></div></div>
 

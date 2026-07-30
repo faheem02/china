@@ -1,6 +1,10 @@
 <?php
 if (!isset($company)) {
-    $company = getRow("SELECT * FROM company_settings LIMIT 1");
+    try {
+        $company = getRow("SELECT * FROM company_settings LIMIT 1");
+    } catch (\Throwable $e) {
+        $company = null;
+    }
 }
 ?>
 <style>
@@ -27,29 +31,24 @@ if (!isset($company)) {
 <div class="print-header">
     <table>
         <tr>
-            <td style="width:60%">
-                <div class="company-name"><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></div>
-                <div class="tagline"><?php echo htmlspecialchars($company['company_tagline'] ?? ''); ?></div>
-                <?php if ($company['address']): ?><div style="font-size:11px;"><?php echo htmlspecialchars($company['address']); ?></div><?php endif; ?>
-                <?php if ($company['phone'] || $company['email']): ?>
-                <div style="font-size:11px;">
-                    <?php if ($company['phone']): ?>Ph: <?php echo htmlspecialchars($company['phone']); ?><?php endif; ?>
-                    <?php if ($company['phone'] && $company['email']): ?> | <?php endif; ?>
-                    <?php if ($company['email']): ?><?php echo htmlspecialchars($company['email']); ?><?php endif; ?>
-                </div>
-                <?php endif; ?>
+            <td style="width:55%;">
+                <div class="company-name"><?php echo CLIENT_NAME; ?></div>
+                <div style="font-size:10px;color:#555;line-height:1.4;"><?php echo CLIENT_REG; ?> | Prop: <?php echo CLIENT_PERSON; ?></div>
+                <div style="font-size:10px;color:#777;line-height:1.4;"><?php echo CLIENT_ADDRESS; ?> | Ph: <?php echo CLIENT_PHONE; ?></div>
             </td>
-            <td style="width:40%; text-align:right; font-size:11px;">
-                <div>Date: <?php echo date('d-m-Y'); ?></div>
-                <div>Time: <?php echo date('h:i A'); ?></div>
-                <div>User: <?php echo isset($_SESSION['full_name']) ? htmlspecialchars($_SESSION['full_name']) : 'Admin'; ?></div>
+            <td style="width:45%; text-align:right; font-size:10px; vertical-align:top;">
+                <div style="background:#f0f0f0;padding:6px 10px;border-radius:4px;display:inline-block;text-align:left;">
+                    <div><strong>Date:</strong> <?php echo date('d-m-Y'); ?></div>
+                    <div><strong>Time:</strong> <?php echo date('h:i A'); ?></div>
+                    <div><strong>User:</strong> <?php echo isset($_SESSION['full_name']) ? htmlspecialchars($_SESSION['full_name']) : 'Admin'; ?></div>
+                </div>
             </td>
         </tr>
     </table>
     <?php if (isset($pageTitle) && $pageTitle): ?>
         <div class="report-title"><?php echo htmlspecialchars($pageTitle); ?>
             <?php if (isset($fromDate) && isset($toDate)): ?>
-                <span class="date-range"> | <?php echo date('d-m-Y', strtotime($fromDate)); ?> to <?php echo date('d-m-Y', strtotime($toDate)); ?></span>
+                <span class="date-range"> | <?php echo formatDate($fromDate); ?> to <?php echo formatDate($toDate); ?></span>
             <?php endif; ?>
         </div>
     <?php endif; ?>

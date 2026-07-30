@@ -14,12 +14,18 @@ if ($flash) {
 
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
-    $items = getRows("SELECT material_id, quantity FROM import_purchase_items WHERE purchase_id = ?", 'i', [$id]);
+    $items = getRows("SELECT material_id, quantity, item_type FROM import_purchase_items WHERE purchase_id = ?", 'i', [$id]);
+    modifyData("DELETE FROM import_purchase_items WHERE purchase_id = ?", 'i', [$id]);
     $result = modifyData("DELETE FROM import_purchases WHERE id = ?", 'i', [$id]);
     if ($result !== false) {
-        modifyData("DELETE FROM import_purchase_items WHERE purchase_id = ?", 'i', [$id]);
         foreach ($items as $item) {
-            modifyData("UPDATE raw_materials SET current_stock = current_stock - ? WHERE id = ?", 'di', [$item['quantity'], $item['material_id']]);
+            $matId = (int)$item['material_id'];
+            $qty = (float)$item['quantity'];
+            if ($item['item_type'] == 'finished_good') {
+                modifyData("UPDATE finished_goods SET current_stock = current_stock - ? WHERE id = ?", 'di', [$qty, $matId]);
+            } else {
+                modifyData("UPDATE raw_materials SET current_stock = current_stock - ? WHERE id = ?", 'di', [$qty, $matId]);
+            }
         }
         setFlash('Import purchase deleted successfully!', 'success');
         header('Location: ' . $_SERVER['PHP_SELF']);
@@ -98,7 +104,7 @@ include '../includes/sidebar.php';
                                                 <?php echo htmlspecialchars($purchase['supplier_name'] ?? 'N/A'); ?>
                                             <?php endif; ?>
                                         </td>
-                                        <td><?php echo isset($purchase['purchase_date']) ? date('d-m-Y', strtotime($purchase['purchase_date'])) : '-'; ?></td>
+                                        <td><?php echo isset($purchase['purchase_date']) ? formatDate($purchase['purchase_date']) : '-'; ?></td>
                                         <td><?php echo htmlspecialchars($purchase['invoice_no'] ?? '-'); ?></td>
                                         <td><strong><?php echo formatCurrency($purchase['total_cny'] ?? 0); ?></strong></td>
                                         <td><?php echo formatCurrency($purchase['tax_amount_cny'] ?? 0); ?></td>
@@ -106,10 +112,13 @@ include '../includes/sidebar.php';
                                         <td><?php echo formatCurrency($purchase['grand_total_pkr'] ?? 0); ?></td>
                                         <td>
                                             <div class="btn-group btn-group-sm">
+                                                <a href="purchase_detail.php?type=import&id=<?php echo $purchase['id']; ?>" class="btn btn-info" title="View">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
                                                 <a href="add_import_purchase.php?edit=<?php echo $purchase['id']; ?>" class="btn btn-warning" title="Edit">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
-                                                <a href="import_purchase_print.php?id=<?php echo $purchase['id']; ?>" class="btn btn-info" title="Print" target="_blank">
+                                                <a href="import_purchase_print.php?id=<?php echo $purchase['id']; ?>" class="btn btn-success" title="Print" target="_blank">
                                                     <i class="fas fa-print"></i>
                                                 </a>
                                                 <a href="?delete=<?php echo $purchase['id']; ?>" class="btn btn-danger delete-confirm" title="Delete">

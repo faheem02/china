@@ -21,10 +21,10 @@ $empPaidCash = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM emplo
 $partyPaidCash = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM party_transactions WHERE type='paid' AND payment_method='cash' AND transaction_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
 
 // Bank Transfers
-$salesBankReceived = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM customer_receipts WHERE payment_method IN ('bank_transfer','cheque') AND payment_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
-$partyReceivedBank = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM party_transactions WHERE type='received' AND payment_method IN ('bank_transfer','cheque') AND transaction_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
-$supplierPaidBank = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM supplier_payments WHERE payment_type IN ('bank_transfer','cheque') AND payment_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
-$partyPaidBank = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM party_transactions WHERE type='paid' AND payment_method IN ('bank_transfer','cheque') AND transaction_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
+$salesBankReceived = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM customer_receipts WHERE payment_method IN ('bank','bank_transfer','cheque') AND payment_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
+$partyReceivedBank = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM party_transactions WHERE type='received' AND payment_method IN ('bank','bank_transfer','cheque') AND transaction_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
+$supplierPaidBank = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM supplier_payments WHERE payment_type IN ('bank','bank_transfer','cheque') AND payment_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
+$partyPaidBank = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM party_transactions WHERE type='paid' AND payment_method IN ('bank','bank_transfer','cheque') AND transaction_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
 
 $totalCashInflow = $salesCashReceived + $partyReceivedCash;
 $totalCashOutflow = $supplierPaidCash + $expensePaid + $empPaidCash + $partyPaidCash;

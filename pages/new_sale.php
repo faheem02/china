@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $customer_id = $customer_type === 'credit' ? (int)$_POST['customer_id'] : 0;
     $walkin_name = $customer_type === 'walkin' ? trim($_POST['walkin_name']) : '';
     $walkin_phone = $customer_type === 'walkin' ? trim($_POST['walkin_phone']) : '';
-    $sale_date = $_POST['sale_date'];
+    $sale_date = !empty($_POST['sale_date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['sale_date']) ? $_POST['sale_date'] : date('Y-m-d');
     $total_amount = (float)$_POST['total_amount'];
     $discount = (float)$_POST['discount'];
     $final_amount = (float)$_POST['final_amount'];
@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($hold_id > 0) {
             modifyData("UPDATE sales SET customer_id=?, customer_type=?, walkin_name=?, walkin_phone=?, sale_date=?, total_amount=?, discount=?, final_amount=?, paid_amount=?, balance=?, payment_status=?, payment_method=?, date_time=? WHERE id=?",
-                'issssdddddsssi', [$customer_id, $customer_type, $walkin_name, $walkin_phone, $sale_date, $total_amount, $discount, $final_amount, $paid_amount, $balance, $payment_status, $payment_method, $currentDateTime, $hold_id]);
+                'isssssdddddssi', [$customer_id, $customer_type, $walkin_name, $walkin_phone, $sale_date, $total_amount, $discount, $final_amount, $paid_amount, $balance, $payment_status, $payment_method, $currentDateTime, $hold_id]);
             modifyData("DELETE FROM sale_items WHERE sale_id=?", 'i', [$hold_id]);
 
             if ($action === 'complete') {
@@ -74,6 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $pid = (int)$product['product_id']; $qty = (float)$product['quantity']; $up = (float)$product['unit_price'];
                     insertData("INSERT INTO sale_items (sale_id,product_id,quantity,unit_price,total,date_time) VALUES (?,?,?,?,?,?)", 'iiddds', [$hold_id, $pid, $qty, $up, $qty*$up, $currentDateTime]);
                     modifyData("UPDATE finished_goods SET current_stock=current_stock-? WHERE id=?", 'di', [$qty, $pid]);
+                }
+                if ($customer_type === 'credit' && $customer_id > 0 && $balance > 0) {
+                    modifyData("UPDATE customers SET current_balance = current_balance + ? WHERE id = ?", 'di', [$balance, $customer_id]);
                 }
                 setFlash('Sale completed successfully!', 'success'); header('Location: sale_print.php?id=' . $hold_id); exit;
             } else {
@@ -87,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sale_no = generateCode('SL');
             $newStatus = ($action === 'hold') ? 'hold' : 'completed';
             $result = insertData("INSERT INTO sales (sale_no,customer_id,customer_type,walkin_name,walkin_phone,sale_date,total_amount,discount,final_amount,paid_amount,balance,payment_status,payment_method,status,date_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                'sisssdddddsssss', [$sale_no, $customer_id, $customer_type, $walkin_name, $walkin_phone, $sale_date, $total_amount, $discount, $final_amount, $paid_amount, $balance, $payment_status, $payment_method, $newStatus, $currentDateTime]);
+                'sissssdddddssss', [$sale_no, $customer_id, $customer_type, $walkin_name, $walkin_phone, $sale_date, $total_amount, $discount, $final_amount, $paid_amount, $balance, $payment_status, $payment_method, $newStatus, $currentDateTime]);
 
             if ($result !== false) {
                 $saleId = $result;
@@ -97,6 +100,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($newStatus === 'completed') {
                         modifyData("UPDATE finished_goods SET current_stock=current_stock-? WHERE id=?", 'di', [$qty, $pid]);
                     }
+                }
+                if ($newStatus === 'completed' && $customer_type === 'credit' && $customer_id > 0 && $balance > 0) {
+                    modifyData("UPDATE customers SET current_balance = current_balance + ? WHERE id = ?", 'di', [$balance, $customer_id]);
                 }
                 if ($action === 'hold') {
                     setFlash('Bill placed on hold!', 'success'); header('Location: view_hold_bills.php'); exit;

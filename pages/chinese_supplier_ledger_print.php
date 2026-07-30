@@ -131,12 +131,7 @@ body { background: #f0f2f5; }
 
 <div class="ledger-wrapper">
 <div class="ledger-a4" id="ledgerContent">
-    <div class="inv-header">
-        <h3>CHINESE SUPPLIER LEDGER</h3>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <?php if ($company['address'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;"><?php echo htmlspecialchars($company['address']); ?></p><?php endif; ?>
-        <?php if ($company['phone'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;">Ph: <?php echo htmlspecialchars($company['phone']); ?></p><?php endif; ?>
-    </div>
+    <?php include '../includes/print_branding.php'; ?>
 
     <div class="inv-meta">
         <div>
@@ -145,7 +140,7 @@ body { background: #f0f2f5; }
             <strong>Exchange Rate:</strong> 1 <?php echo $supplier['currency_code']; ?> = <?php echo number_format($exchangeRate, 4); ?> PKR
         </div>
         <div style="text-align:right">
-            <strong>Period:</strong> <?php echo date('d-m-Y', strtotime($fromDate)); ?> to <?php echo date('d-m-Y', strtotime($toDate)); ?><br>
+            <strong>Period:</strong> <?php echo formatDate($fromDate); ?> to <?php echo formatDate($toDate); ?><br>
             <strong>Printed:</strong> <?php echo date('d-m-Y h:i A'); ?>
         </div>
     </div>
@@ -192,7 +187,7 @@ body { background: #f0f2f5; }
         <tbody>
             <tr style="background:#f0f0f0;">
                 <td></td>
-                <td><?php echo date('d-m-Y'); ?></td>
+                <td><?php echo formatDate($supplier['date_time']); ?></td>
                 <td><strong>Opening Balance</strong></td>
                 <td></td>
                 <td></td>
@@ -217,7 +212,7 @@ body { background: #f0f2f5; }
                     ?>
                     <tr>
                         <td><?php echo $counter++; ?></td>
-                        <td><?php echo date('d-m-Y', strtotime($transaction['transaction_date'])); ?></td>
+                        <td><?php echo formatDate($transaction['transaction_date']); ?></td>
                         <td><strong><?php echo htmlspecialchars($transaction['reference_no']); ?></strong></td>
                         <td><?php echo htmlspecialchars($transaction['invoice_no']); ?></td>
                         <td>
@@ -261,7 +256,7 @@ body { background: #f0f2f5; }
     </table>
 
     <div class="inv-footer">
-        <p>Generated on <?php echo date('d-m-Y h:i A'); ?> | Exchange Rate: 1 <?php echo $supplier['currency_code']; ?> = <?php echo number_format($exchangeRate, 4); ?> PKR | <?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
+        <p>Generated on <?php echo date('d-m-Y h:i A'); ?> | Exchange Rate: 1 <?php echo $supplier['currency_code']; ?> = <?php echo number_format($exchangeRate, 4); ?> PKR | <?php echo CLIENT_NAME; ?></p>
     </div>
 </div>
 </div>

@@ -23,7 +23,7 @@ include '../includes/print_header.php';
 ?>
 
 <div class="row mb-3"><div class="col-12"><div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center"><span><i class="fas fa-filter me-2"></i>As of Date: <?php echo date('d-m-Y', strtotime($asOnDate));?></span><button onclick="window.print()" class="btn btn-danger btn-sm"><i class="fas fa-print me-1"></i>Print</button></div>
+    <div class="card-header d-flex justify-content-between align-items-center"><span><i class="fas fa-filter me-2"></i>As of Date: <?php echo formatDate($asOnDate);?></span><button onclick="window.print()" class="btn btn-danger btn-sm"><i class="fas fa-print me-1"></i>Print</button></div>
     <div class="card-body"><form method="GET" class="row g-3">
         <div class="col-md-4"><label class="form-label">As of Date</label><input type="date" class="form-control" name="as_on_date" value="<?php echo $asOnDate; ?>"></div>
         <div class="col-md-4 d-flex align-items-end"><button type="submit" class="btn btn-primary w-100"><i class="fas fa-search me-2"></i>Generate</button></div>

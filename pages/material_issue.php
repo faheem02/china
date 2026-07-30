@@ -194,7 +194,7 @@ include '../includes/sidebar.php';
                                 <tr>
                                     <td><?php echo $counter++; ?></td>
                                     <td><strong><?php echo htmlspecialchars($issue['issue_no']); ?></strong></td>
-                                    <td><?php echo date('d-m-Y', strtotime($issue['issue_date'])); ?></td>
+                                    <td><?php echo formatDate($issue['issue_date']); ?></td>
                                     <td><span class="badge bg-primary"><?php echo $issue['item_count']; ?> material(s)</span></td>
                                     <td><?php echo htmlspecialchars($issue['notes'] ?: '-'); ?></td>
                                     <td>

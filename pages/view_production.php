@@ -113,7 +113,7 @@ include '../includes/sidebar.php';
                                     <tr>
                                         <td><?php echo $counter++; ?></td>
                                         <td><strong><?php echo htmlspecialchars($order['production_no'] ?? ''); ?></strong></td>
-                                        <td><?php echo isset($order['production_date']) ? date('d-m-Y', strtotime($order['production_date'])) : '-'; ?></td>
+                                        <td><?php echo isset($order['production_date']) ? formatDate($order['production_date']) : '-'; ?></td>
                                         <td>
                                             <?php 
                                             if (isset($order['product_code']) && isset($order['product_name'])) {

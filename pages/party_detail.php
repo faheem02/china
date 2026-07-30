@@ -156,7 +156,7 @@ include '../includes/sidebar.php';
                             <?php $j = 1; foreach ($txnWithBalance as $txn): ?>
                                 <tr>
                                     <td><?php echo $j++; ?></td>
-                                    <td><?php echo date('d-m-Y', strtotime($txn['transaction_date'])); ?></td>
+                                    <td><?php echo formatDate($txn['transaction_date']); ?></td>
                                     <td><strong><?php echo htmlspecialchars($txn['transaction_no']); ?></strong></td>
                                     <td>
                                         <?php if ($txn['type'] === 'payable'): ?>

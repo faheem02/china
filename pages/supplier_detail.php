@@ -47,7 +47,8 @@ $sql = "SELECT
             balance,
             payment_status,
             status,
-            invoice_no
+            invoice_no,
+            previous_balance
         FROM local_purchases 
         WHERE supplier_id = ? 
         ORDER BY purchase_date DESC, id DESC";
@@ -56,8 +57,8 @@ $purchases = getRows($sql, 'i', [$supplierId]);
 // Get supplier payments (if any - you can add payment table later)
 $sql = "SELECT 
             'Payment' as transaction_type,
-            'Payment' as reference_no,
-            date_time as transaction_date,
+            payment_no as reference_no,
+            payment_date as transaction_date,
             amount,
             amount as paid_amount,
             0 as balance,
@@ -66,13 +67,30 @@ $sql = "SELECT
             '' as invoice_no
         FROM supplier_payments 
         WHERE supplier_id = ? 
-        ORDER BY date_time DESC";
+        ORDER BY payment_date DESC, id DESC";
 $payments = getRows($sql, 'i', [$supplierId]);
 
 // Merge transactions
 $transactions = array_merge($purchases, $payments);
 
-// Sort by date
+// Sort ASC for running balance calculation
+usort($transactions, function($a, $b) {
+    return strtotime($a['transaction_date']) - strtotime($b['transaction_date']);
+});
+
+// Calculate running balance starting from opening_balance
+$runningBalance = $supplier['opening_balance'];
+foreach ($transactions as &$t) {
+    if ($t['transaction_type'] === 'Purchase') {
+        $runningBalance += $t['amount'] - $t['paid_amount'];
+    } else {
+        $runningBalance -= $t['amount'];
+    }
+    $t['running_balance'] = $runningBalance;
+}
+unset($t);
+
+// Sort back DESC for display
 usort($transactions, function($a, $b) {
     return strtotime($b['transaction_date']) - strtotime($a['transaction_date']);
 });
@@ -136,10 +154,6 @@ include '../includes/sidebar.php';
                             <tr>
                                 <th>Company Name</th>
                                 <td><?php echo htmlspecialchars($supplier['company_name']); ?></td>
-                            </tr>
-                            <tr>
-                                <th>Contact Person</th>
-                                <td><?php echo htmlspecialchars($supplier['contact_person']); ?></td>
                             </tr>
                             <tr>
                                 <th>Phone</th>
@@ -234,10 +248,20 @@ include '../includes/sidebar.php';
                             </tr>
                         </thead>
                         <tbody>
+                            <tr style="background:#e8f0fe;">
+                                <td>-</td>
+                                <td><strong><?php echo htmlspecialchars($supplier['supplier_name']); ?></strong></td>
+                                <td><span class="badge bg-secondary">Opening Balance</span></td>
+                                <td>-</td>
+                                <td class="fw-bold"><?php echo formatCurrency($supplier['opening_balance']); ?></td>
+                                <td>-</td>
+                                <td class="fw-bold"><?php echo formatCurrency($supplier['opening_balance']); ?></td>
+                                <td><span class="badge bg-info">Active</span></td>
+                            </tr>
                             <?php if (count($transactions) > 0): ?>
                                 <?php foreach (array_slice($transactions, 0, 10) as $transaction): ?>
                                     <tr>
-                                        <td><?php echo date('d-m-Y', strtotime($transaction['transaction_date'])); ?></td>
+                                        <td><?php echo formatDate($transaction['transaction_date']); ?></td>
                                         <td><?php echo htmlspecialchars($transaction['reference_no']); ?></td>
                                         <td>
                                             <span class="badge bg-<?php echo $transaction['transaction_type'] == 'Purchase' ? 'primary' : 'success'; ?>">
@@ -247,7 +271,7 @@ include '../includes/sidebar.php';
                                         <td><?php echo htmlspecialchars($transaction['invoice_no']); ?></td>
                                         <td><?php echo formatCurrency($transaction['amount']); ?></td>
                                         <td><?php echo formatCurrency($transaction['paid_amount']); ?></td>
-                                        <td><?php echo formatCurrency($transaction['balance']); ?></td>
+                                        <td><?php echo formatCurrency($transaction['running_balance']); ?></td>
                                         <td>
                                             <span class="badge badge-status badge-<?php echo strtolower($transaction['payment_status']); ?>">
                                                 <?php echo ucfirst($transaction['payment_status']); ?>

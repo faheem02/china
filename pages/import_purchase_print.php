@@ -3,24 +3,21 @@ require_once '../includes/database.php';
 requireLogin();
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-if ($id <= 0) {
-    header('Location: import_purchases.php');
-    exit;
-}
+if ($id <= 0) { header('Location: import_purchases.php'); exit; }
 
 $purchase = getRow("SELECT p.*, s.supplier_name, s.company_name, s.contact_person, s.phone, s.email, s.address, s.city, s.country
     FROM import_purchases p
     LEFT JOIN chinese_suppliers s ON p.supplier_id = s.id
     WHERE p.id = ?", 'i', [$id]);
+if (!$purchase) { header('Location: import_purchases.php'); exit; }
 
-if (!$purchase) {
-    header('Location: import_purchases.php');
-    exit;
-}
-
-$items = getRows("SELECT i.*, rm.material_code, rm.material_name, rm.unit
+$items = getRows("SELECT i.*,
+    CASE WHEN i.item_type = 'finished_good' THEN fg.product_code ELSE rm.material_code END AS material_code,
+    CASE WHEN i.item_type = 'finished_good' THEN fg.product_name ELSE rm.material_name END AS material_name,
+    CASE WHEN i.item_type = 'finished_good' THEN fg.unit ELSE rm.unit END AS unit
     FROM import_purchase_items i
-    LEFT JOIN raw_materials rm ON i.material_id = rm.id
+    LEFT JOIN raw_materials rm ON i.material_id = rm.id AND i.item_type = 'raw_material'
+    LEFT JOIN finished_goods fg ON i.material_id = fg.id AND i.item_type = 'finished_good'
     WHERE i.purchase_id = ?
     ORDER BY i.id", 'i', [$id]);
 
@@ -29,261 +26,224 @@ $company = getRow("SELECT * FROM company_settings LIMIT 1");
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Import Purchase #<?php echo $purchase['purchase_no']; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        * { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .no-print { padding: 20px; background: #f8f9fa; border-bottom: 2px solid #dee2e6; }
-        @media print {
-            .no-print { display: none !important; }
-            body { margin: 0; padding: 0; }
-        }
+<meta charset="UTF-8">
+<title>Import Purchase Invoice - <?php echo $purchase['purchase_no']; ?></title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+* { font-family: 'Poppins', sans-serif; }
+body { background: #f0f2f5; }
 
-        /* A4 Styles */
-        .a4-preview { background: #fff; max-width: 210mm; margin: 20px auto; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .a4-preview .header-section { border-bottom: 3px solid #1a2332; padding-bottom: 15px; margin-bottom: 20px; }
-        .a4-preview .company-name { font-size: 22px; font-weight: 700; color: #1a2332; }
-        .a4-preview .invoice-title { font-size: 18px; font-weight: 600; color: #1a2332; text-align: right; }
-        .a4-preview table { font-size: 13px; }
-        .a4-preview table th { background: #1a2332; color: #fff; padding: 8px 10px; font-weight: 600; }
-        .a4-preview table td { padding: 7px 10px; vertical-align: middle; }
-        .a4-preview .summary-table td { padding: 5px 10px; }
-        .a4-preview .footer-section { border-top: 2px solid #dee2e6; padding-top: 15px; margin-top: 30px; font-size: 12px; color: #666; }
+.action-buttons { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; background: #1a2332; padding: 10px 20px; display: flex; gap: 10px; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+.action-buttons .btn { font-size: 14px; }
+.bill-wrapper { margin-top: 70px; display: flex; justify-content: center; padding: 20px; }
 
-        @media print {
-            .a4-preview { box-shadow: none; margin: 0; padding: 15mm; max-width: none; }
-        }
+.invoice-a4 { max-width: 800px; width: 100%; background: #fff; padding: 40px; border: 1px solid #ddd; }
+.invoice-a4 .inv-header { text-align: center; border-bottom: 3px solid #1a2332; padding-bottom: 15px; margin-bottom: 20px; }
+.invoice-a4 .inv-header h3 { margin: 0; color: #1a2332; font-weight: 700; }
+.invoice-a4 .inv-header p { margin: 2px 0 0; color: #666; font-size: 13px; }
+.invoice-a4 .inv-meta { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 13px; }
+.invoice-a4 .inv-meta strong { color: #1a2332; }
+.invoice-a4 table { width: 100%; font-size: 13px; }
+.invoice-a4 table thead th { background: #1a2332; color: #fff; padding: 8px 10px; font-weight: 600; }
+.invoice-a4 table tbody td { padding: 7px 10px; border-bottom: 1px solid #eee; }
+.invoice-a4 .inv-totals { margin-top: 15px; }
+.invoice-a4 .inv-totals table { width: 300px; margin-left: auto; }
+.invoice-a4 .inv-totals table td { padding: 5px 10px; border-bottom: 1px solid #eee; }
+.invoice-a4 .inv-totals table td:last-child { text-align: right; }
+.invoice-a4 .inv-footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 2px solid #1a2332; font-size: 12px; color: #666; }
+.empty-state { text-align: center; padding: 40px; color: #999; }
 
-        /* Thermal Styles */
-        .thermal-preview { background: #fff; width: 80mm; margin: 20px auto; padding: 10mm; box-shadow: 0 2px 10px rgba(0,0,0,0.1); font-family: 'Courier New', monospace; font-size: 12px; }
-        .thermal-preview .text-center { text-align: center; }
-        .thermal-preview .text-right { text-align: right; }
-        .thermal-preview .fw-bold { font-weight: bold; }
-        .thermal-preview .border-top { border-top: 1px dashed #000; margin: 5px 0; padding-top: 5px; }
-        .thermal-preview .border-double { border-top: 3px double #000; margin: 5px 0; padding-top: 5px; }
-        .thermal-preview table { width: 100%; font-size: 11px; }
-        .thermal-preview table td { padding: 2px 0; }
-        .thermal-preview .small { font-size: 10px; }
-        .thermal-preview .line { border-top: 1px dashed #000; margin: 3px 0; }
+.invoice-thermal { display: none; width: 300px; background: #fff; padding: 15px; border: 1px solid #ddd; font-size: 12px; }
+.invoice-thermal .th-header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
+.invoice-thermal .th-header h5 { margin: 0; font-size: 14px; font-weight: 700; }
+.invoice-thermal .th-header p { margin: 1px 0 0; font-size: 11px; }
+.invoice-thermal table { width: 100%; font-size: 11px; }
+.invoice-thermal table th { text-align: left; padding: 3px 0; border-bottom: 1px dashed #000; font-weight: 700; }
+.invoice-thermal table td { padding: 3px 0; }
+.invoice-thermal .th-line { border-bottom: 1px dashed #000; margin: 5px 0; }
+.invoice-thermal .th-total { font-weight: 700; font-size: 13px; }
+.invoice-thermal .th-footer { text-align: center; margin-top: 10px; padding-top: 8px; border-top: 1px dashed #000; font-size: 10px; }
 
-        @media print {
-            .thermal-preview { box-shadow: none; margin: 0; padding: 5mm; width: 80mm; }
-            @page { size: 80mm auto; margin: 0; }
-        }
-
-        .preview-section { display: none; }
-        .preview-section.active { display: block; }
-    </style>
+@media print {
+    body { background: #fff !important; margin: 0; padding: 0; }
+    .action-buttons { display: none !important; }
+    .bill-wrapper { margin: 0; padding: 0; }
+    .invoice-a4 { border: none; padding: 20px; max-width: 100%; }
+    .invoice-thermal { border: none; padding: 10px; }
+}
+@media print and (orientation: portrait) {
+    .bill-wrapper { display: block; }
+    .invoice-thermal { display: block !important; }
+    .invoice-a4 { display: none !important; }
+}
+@media print and (orientation: landscape) {
+    .bill-wrapper { display: block; }
+    .invoice-a4 { display: block !important; }
+    .invoice-thermal { display: none !important; }
+}
+</style>
 </head>
 <body>
 
-<div class="no-print">
-    <div class="container-fluid">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h4><i class="fas fa-file-invoice me-2"></i>Import Purchase Invoice</h4>
-                <p class="text-muted mb-0">Purchase #<?php echo $purchase['purchase_no']; ?></p>
-            </div>
-            <div class="d-flex gap-2">
-                <button class="btn btn-primary" onclick="showA4()">
-                    <i class="fas fa-file-pdf me-1"></i>A4 Print
-                </button>
-                <button class="btn btn-success" onclick="showThermal()">
-                    <i class="fas fa-receipt me-1"></i>Thermal Print
-                </button>
-                <button class="btn btn-warning" onclick="printPreview()">
-                    <i class="fas fa-print me-1"></i>Print
-                </button>
-                <a href="import_purchases.php" class="btn btn-light">
-                    <i class="fas fa-arrow-left me-1"></i>Back
-                </a>
-            </div>
+<div class="action-buttons">
+    <a href="import_purchases.php" class="btn btn-outline-light btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+    <span class="text-white fw-bold me-2"><i class="fas fa-file-invoice me-1"></i><?php echo $purchase['purchase_no']; ?></span>
+    <button class="btn btn-light btn-sm" onclick="printA4()"><i class="fas fa-file-pdf me-1"></i>Print A4</button>
+    <button class="btn btn-light btn-sm" onclick="printThermal()"><i class="fas fa-print me-1"></i>Print Thermal</button>
+    <a href="add_import_purchase.php?edit=<?php echo $purchase['id']; ?>" class="btn btn-warning btn-sm ms-auto"><i class="fas fa-edit me-1"></i>Edit</a>
+    <a href="import_purchases.php" class="btn btn-outline-light btn-sm"><i class="fas fa-list me-1"></i>All Purchases</a>
+</div>
+
+<div class="bill-wrapper">
+
+<!-- A4 Invoice -->
+<div class="invoice-a4" id="invoiceA4">
+    <?php include '../includes/print_branding.php'; ?>
+
+    <div class="inv-meta">
+        <div>
+            <strong>Purchase No:</strong> <?php echo htmlspecialchars($purchase['purchase_no']); ?><br>
+            <strong>Date:</strong> <?php echo formatDate($purchase['purchase_date']); ?><br>
+            <strong>Invoice #:</strong> <?php echo htmlspecialchars($purchase['invoice_no'] ?? '-'); ?><br>
+            <strong>Exchange Rate:</strong> 1 CNY = <?php echo number_format($purchase['exchange_rate'], 2); ?> PKR
         </div>
+        <div style="text-align:right">
+            <strong>Supplier:</strong> <?php echo htmlspecialchars($purchase['supplier_name']); ?><br>
+            <?php if ($purchase['company_name']): ?><strong>Company:</strong> <?php echo htmlspecialchars($purchase['company_name']); ?><br><?php endif; ?>
+            <?php if ($purchase['contact_person']): ?><strong>Contact:</strong> <?php echo htmlspecialchars($purchase['contact_person']); ?><br><?php endif; ?>
+            <?php if ($purchase['phone']): ?><strong>Phone:</strong> <?php echo htmlspecialchars($purchase['phone']); ?><br><?php endif; ?>
+            <?php if ($purchase['email']): ?><strong>Email:</strong> <?php echo htmlspecialchars($purchase['email']); ?><br><?php endif; ?>
+            <?php if ($purchase['city']): ?><strong>City:</strong> <?php echo htmlspecialchars($purchase['city']); ?>, <?php endif; ?>
+            <?php echo htmlspecialchars($purchase['country'] ?? 'China'); ?>
+        </div>
+    </div>
+
+    <?php if (count($items) > 0): ?>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Code</th>
+                <th>Material</th>
+                <th>Unit</th>
+                <th style="text-align:right">Qty</th>
+                <th style="text-align:right">Price (CNY)</th>
+                <th style="text-align:right">Price (PKR)</th>
+                <th style="text-align:right">Total (CNY)</th>
+                <th style="text-align:right">Total (PKR)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php $i = 1; foreach ($items as $item): ?>
+            <tr>
+                <td><?php echo $i++; ?></td>
+                <td><?php echo htmlspecialchars($item['material_code'] ?? '-'); ?></td>
+                <td><?php echo htmlspecialchars($item['material_name'] ?? '-'); ?></td>
+                <td><?php echo htmlspecialchars($item['unit'] ?? '-'); ?></td>
+                <td style="text-align:right"><?php echo number_format($item['quantity'], 2); ?></td>
+                <td style="text-align:right"><?php echo number_format($item['unit_price_cny'], 2); ?></td>
+                <td style="text-align:right"><?php echo number_format($item['unit_price_pkr'], 2); ?></td>
+                <td style="text-align:right;font-weight:700;"><?php echo number_format($item['total_cny'], 2); ?></td>
+                <td style="text-align:right"><?php echo number_format($item['total_pkr'], 2); ?></td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+
+    <div class="inv-totals">
+        <table>
+            <?php if (($purchase['previous_amount_cny'] ?? 0) > 0): ?>
+            <tr><td>Previous Balance (CNY):</td><td><?php echo number_format($purchase['previous_amount_cny'], 2); ?></td></tr>
+            <?php endif; ?>
+            <tr><td>Bill Amount (CNY):</td><td><?php echo number_format($purchase['total_cny'], 2); ?></td></tr>
+            <?php if (($purchase['tax_amount_cny'] ?? 0) > 0): ?>
+            <tr><td>S. Tax (CNY):</td><td><?php echo number_format($purchase['tax_amount_cny'], 2); ?></td></tr>
+            <?php endif; ?>
+            <tr><td><strong>Grand Total (CNY):</strong></td><td><strong><?php echo number_format($purchase['grand_total_cny'], 2); ?></strong></td></tr>
+            <tr><td class="small text-muted">Grand Total (PKR):</td><td class="small"><?php echo number_format($purchase['grand_total_pkr'], 2); ?></td></tr>
+        </table>
+    </div>
+    <?php else: ?>
+    <div class="empty-state">
+        <i class="fas fa-inbox fa-3x mb-3"></i>
+        <h5>No Items Found</h5>
+        <p>This purchase has no items recorded. <a href="add_import_purchase.php?edit=<?php echo $purchase['id']; ?>">Edit purchase</a> to add items.</p>
+    </div>
+    <?php endif; ?>
+
+    <div class="inv-footer">
+        <p>Thank you for your business!</p>
     </div>
 </div>
 
-<!-- A4 Preview -->
-<div class="preview-section active" id="a4Preview">
-    <div class="a4-preview">
-        <div class="header-section">
-            <div class="row">
-                <div class="col-6">
-                    <div class="company-name"><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></div>
-                    <div class="small text-muted"><?php echo htmlspecialchars($company['company_tagline'] ?? 'Manufacturing Enterprise Resource Planning'); ?></div>
-                    <?php if ($company['address'] ?? null): ?><div class="small text-muted"><?php echo htmlspecialchars($company['address']); ?></div><?php endif; ?>
-                    <?php if ($company['phone'] ?? null): ?><div class="small text-muted">Ph: <?php echo htmlspecialchars($company['phone']); ?></div><?php endif; ?>
-                </div>
-                <div class="col-6 text-end">
-                    <div class="invoice-title">IMPORT PURCHASE INVOICE</div>
-                    <div class="small">Date: <strong><?php echo date('d-m-Y', strtotime($purchase['purchase_date'])); ?></strong></div>
-                    <div class="small">Invoice #: <strong><?php echo htmlspecialchars($purchase['invoice_no'] ?? '-'); ?></strong></div>
-                    <div class="small">Purchase No: <strong><?php echo htmlspecialchars($purchase['purchase_no']); ?></strong></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row mb-3">
-            <div class="col-6">
-                <strong class="text-muted small">SUPPLIER DETAILS</strong>
-                <div class="mt-1">
-                    <strong><?php echo htmlspecialchars($purchase['supplier_name']); ?></strong><br>
-                    <?php if ($purchase['company_name']): ?><?php echo htmlspecialchars($purchase['company_name']); ?><br><?php endif; ?>
-                    <?php if ($purchase['contact_person']): ?><?php echo htmlspecialchars($purchase['contact_person']); ?><br><?php endif; ?>
-                    <?php if ($purchase['phone']): ?>Phone: <?php echo htmlspecialchars($purchase['phone']); ?><br><?php endif; ?>
-                    <?php if ($purchase['email']): ?>Email: <?php echo htmlspecialchars($purchase['email']); ?><br><?php endif; ?>
-                    <?php if ($purchase['city']): ?><?php echo htmlspecialchars($purchase['city']); ?>, <?php endif; ?>
-                    <?php echo htmlspecialchars($purchase['country'] ?? 'China'); ?>
-                </div>
-            </div>
-            <div class="col-6">
-                <strong class="text-muted small">EXCHANGE RATE</strong>
-                <div class="mt-1">
-                    1 CNY = <strong><?php echo number_format($purchase['exchange_rate'], 2); ?></strong> PKR
-                </div>
-            </div>
-        </div>
-
-        <table class="table table-bordered">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Material Code</th>
-                    <th>Material Name</th>
-                    <th>Unit</th>
-                    <th class="text-end">Qty</th>
-                    <th class="text-end">Price (CNY)</th>
-                    <th class="text-end">Price (PKR)</th>
-                    <th class="text-end">Total (CNY)</th>
-                    <th class="text-end">Total (PKR)</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php $counter = 1; ?>
-                <?php foreach ($items as $item): ?>
-                    <tr>
-                        <td><?php echo $counter++; ?></td>
-                        <td><?php echo htmlspecialchars($item['material_code']); ?></td>
-                        <td><?php echo htmlspecialchars($item['material_name']); ?></td>
-                        <td><?php echo htmlspecialchars($item['unit'] ?? '-'); ?></td>
-                        <td class="text-end"><?php echo number_format($item['quantity'], 2); ?></td>
-                        <td class="text-end"><?php echo number_format($item['unit_price_cny'], 2); ?></td>
-                        <td class="text-end"><?php echo number_format($item['unit_price_pkr'], 2); ?></td>
-                        <td class="text-end fw-bold"><?php echo number_format($item['total_cny'], 2); ?></td>
-                        <td class="text-end"><?php echo number_format($item['total_pkr'], 2); ?></td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-
-        <div class="row">
-            <div class="col-6">
-                <div class="footer-section">
-                    <strong>Notes:</strong><br>
-                    This is a computer generated invoice.<br>
-                    Exchange Rate: 1 CNY = <?php echo number_format($purchase['exchange_rate'], 2); ?> PKR
-                </div>
-            </div>
-            <div class="col-6">
-                <table class="table table-sm summary-table" style="width:250px;float:right;">
-                    <tr>
-                        <td><strong>Previous Amount (CNY)</strong></td>
-                        <td class="text-end"><?php echo number_format($purchase['previous_amount_cny'] ?? 0, 2); ?></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Bill Amount (CNY)</strong></td>
-                        <td class="text-end"><?php echo number_format($purchase['total_cny'], 2); ?></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Total Amount (CNY)</strong></td>
-                        <td class="text-end"><?php echo number_format(($purchase['previous_amount_cny'] ?? 0) + $purchase['total_cny'], 2); ?></td>
-                    </tr>
-                    <tr>
-                        <td><strong>S. Tax (CNY)</strong></td>
-                        <td class="text-end"><?php echo number_format($purchase['tax_amount_cny'] ?? 0, 2); ?></td>
-                    </tr>
-                    <tr style="border-top:2px solid #1a2332;">
-                        <td><strong style="font-size:15px;">Grand Amount (CNY)</strong></td>
-                        <td class="text-end fw-bold" style="font-size:15px;color:#198754;"><?php echo number_format($purchase['grand_total_cny'], 2); ?></td>
-                    </tr>
-                    <tr>
-                        <td class="small text-muted">Grand Amount (PKR)</td>
-                        <td class="text-end small"><?php echo number_format($purchase['grand_total_pkr'], 2); ?></td>
-                    </tr>
-                </table>
-            </div>
-        </div>
+<!-- Thermal Invoice -->
+<div class="invoice-thermal" id="invoiceThermal">
+    <div class="th-header">
+        <h5><?php echo CLIENT_NAME; ?></h5>
+        <p><?php echo CLIENT_ADDRESS; ?> | Ph: <?php echo CLIENT_PHONE; ?></p>
+    </div>
+    <table>
+        <tr><td><strong>Date:</strong></td><td><?php echo formatDate($purchase['purchase_date']); ?></td></tr>
+        <tr><td><strong>Inv #:</strong></td><td><?php echo htmlspecialchars($purchase['invoice_no'] ?? '-'); ?></td></tr>
+        <tr><td><strong>Supplier:</strong></td><td><?php echo htmlspecialchars($purchase['supplier_name']); ?></td></tr>
+        <?php if ($purchase['phone']): ?>
+        <tr><td><strong>Phone:</strong></td><td><?php echo htmlspecialchars($purchase['phone']); ?></td></tr>
+        <?php endif; ?>
+        <tr><td><strong>Rate:</strong></td><td>1 CNY = <?php echo number_format($purchase['exchange_rate'], 2); ?> PKR</td></tr>
+    </table>
+    <div class="th-line"></div>
+    <?php if (count($items) > 0): ?>
+    <table>
+        <thead>
+            <tr><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">CNY</th><th style="text-align:right">Total</th></tr>
+        </thead>
+        <tbody>
+            <?php foreach ($items as $item): ?>
+            <tr>
+                <td><?php echo htmlspecialchars($item['material_name'] ?? '-'); ?></td>
+                <td style="text-align:right"><?php echo number_format($item['quantity'], 0); ?></td>
+                <td style="text-align:right"><?php echo number_format($item['unit_price_cny'], 2); ?></td>
+                <td style="text-align:right;font-weight:700;"><?php echo number_format($item['total_cny'], 2); ?></td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+    <?php else: ?>
+    <p class="text-center">No items</p>
+    <?php endif; ?>
+    <div class="th-line"></div>
+    <table>
+        <?php if (($purchase['previous_amount_cny'] ?? 0) > 0): ?>
+        <tr><td>Previous:</td><td style="text-align:right"><?php echo number_format($purchase['previous_amount_cny'], 2); ?></td></tr>
+        <?php endif; ?>
+        <tr><td>Bill Amt:</td><td style="text-align:right"><?php echo number_format($purchase['total_cny'], 2); ?></td></tr>
+        <tr><td>S.Tax:</td><td style="text-align:right"><?php echo number_format($purchase['tax_amount_cny'] ?? 0, 2); ?></td></tr>
+    </table>
+    <div class="th-line"></div>
+    <table>
+        <tr><td class="th-total">GRAND TOTAL:</td><td class="th-total" style="text-align:right"><?php echo number_format($purchase['grand_total_cny'], 2); ?> CNY</td></tr>
+        <tr><td class="small text-muted">(PKR)</td><td style="text-align:right" class="small"><?php echo number_format($purchase['grand_total_pkr'], 2); ?></td></tr>
+    </table>
+    <div class="th-line"></div>
+    <div class="th-footer">
+        <p>Thank you!</p>
     </div>
 </div>
 
-<!-- Thermal Preview -->
-<div class="preview-section" id="thermalPreview">
-    <div class="thermal-preview" id="thermalContent">
-        <div class="text-center">
-            <div class="fw-bold" style="font-size:16px;"><?php echo strtoupper(htmlspecialchars($company['company_name'] ?? 'ERP SYSTEM')); ?></div>
-            <div class="small"><?php echo htmlspecialchars($company['company_tagline'] ?? 'Manufacturing ERP'); ?></div>
-            <div class="small">Import Purchase Invoice</div>
-        </div>
-        <div class="line"></div>
-        <table>
-            <tr><td>Date:</td><td class="text-right fw-bold"><?php echo date('d-m-Y', strtotime($purchase['purchase_date'])); ?></td></tr>
-            <tr><td>Inv #:</td><td class="text-right"><?php echo htmlspecialchars($purchase['invoice_no'] ?? '-'); ?></td></tr>
-            <tr><td>Pur No:</td><td class="text-right fw-bold"><?php echo htmlspecialchars($purchase['purchase_no']); ?></td></tr>
-        </table>
-        <div class="line"></div>
-        <div class="fw-bold small">SUPPLIER</div>
-        <div class="small"><?php echo htmlspecialchars($purchase['supplier_name']); ?></div>
-        <?php if ($purchase['company_name']): ?><div class="small"><?php echo htmlspecialchars($purchase['company_name']); ?></div><?php endif; ?>
-        <div class="line"></div>
-        <table>
-            <thead>
-                <tr><td class="fw-bold small">ITEM</td><td class="fw-bold small text-right">QTY</td><td class="fw-bold small text-right">CNY</td><td class="fw-bold small text-right">TOTAL</td></tr>
-            </thead>
-            <tbody>
-                <?php foreach ($items as $item): ?>
-                    <tr>
-                        <td class="small"><?php echo htmlspecialchars($item['material_name']); ?></td>
-                        <td class="small text-right"><?php echo number_format($item['quantity'], 0); ?></td>
-                        <td class="small text-right"><?php echo number_format($item['unit_price_cny'], 2); ?></td>
-                        <td class="small text-right fw-bold"><?php echo number_format($item['total_cny'], 2); ?></td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-        <div class="line"></div>
-        <table>
-            <tr><td>Previous:</td><td class="text-right"><?php echo number_format($purchase['previous_amount_cny'] ?? 0, 2); ?></td></tr>
-            <tr><td>Bill Amt:</td><td class="text-right"><?php echo number_format($purchase['total_cny'], 2); ?></td></tr>
-            <tr><td>S.Tax:</td><td class="text-right"><?php echo number_format($purchase['tax_amount_cny'] ?? 0, 2); ?></td></tr>
-        </table>
-        <div class="border-double">
-            <table>
-                <tr><td class="fw-bold" style="font-size:14px;">GRAND TOTAL:</td><td class="text-right fw-bold" style="font-size:14px;"><?php echo number_format($purchase['grand_total_cny'], 2); ?> CNY</td></tr>
-            </table>
-            <div class="small text-center text-muted">(PKR <?php echo number_format($purchase['grand_total_pkr'], 2); ?>)</div>
-        </div>
-        <div class="line"></div>
-        <div class="text-center small">Thank you for your business!</div>
-    </div>
 </div>
 
 <script>
-function showA4() {
-    document.getElementById('a4Preview').classList.add('active');
-    document.getElementById('thermalPreview').classList.remove('active');
+function printA4() {
+    document.getElementById('invoiceA4').style.display = 'block';
+    document.getElementById('invoiceThermal').style.display = 'none';
+    window.print();
 }
-
-function showThermal() {
-    document.getElementById('thermalPreview').classList.add('active');
-    document.getElementById('a4Preview').classList.remove('active');
-}
-
-function printPreview() {
+function printThermal() {
+    document.getElementById('invoiceA4').style.display = 'none';
+    document.getElementById('invoiceThermal').style.display = 'block';
     window.print();
 }
 </script>
-
 </body>
 </html>

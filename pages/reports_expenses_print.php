@@ -68,17 +68,12 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
 </div>
 <div class="ledger-wrapper">
 <div class="ledger-a4" id="ledgerContent">
-    <div class="inv-header">
-        <h3>EXPENSE REPORT</h3>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <?php if ($company['address'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;"><?php echo htmlspecialchars($company['address']); ?></p><?php endif; ?>
-        <?php if ($company['phone'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;">Ph: <?php echo htmlspecialchars($company['phone']); ?></p><?php endif; ?>
-    </div>
+    <?php include '../includes/print_branding.php'; ?>
     <div class="inv-meta">
-        <div><strong>Period:</strong> <?php echo date('d-m-Y', strtotime($fromDate)); ?> to <?php echo date('d-m-Y', strtotime($toDate)); ?><?php if (!empty($headFilter)): ?><br><strong>Category:</strong> <?php echo htmlspecialchars($headFilter); ?><?php endif; ?></div>
+        <div><strong>Period:</strong> <?php echo formatDate($fromDate); ?> to <?php echo formatDate($toDate); ?><?php if (!empty($headFilter)): ?><br><strong>Category:</strong> <?php echo htmlspecialchars($headFilter); ?><?php endif; ?></div>
         <div style="text-align:right"><strong>Printed:</strong> <?php echo date('d-m-Y h:i A'); ?><br><strong>User:</strong> <?php echo isset($_SESSION['full_name']) ? htmlspecialchars($_SESSION['full_name']) : 'Admin'; ?></div>
     </div>
-    <div class="inv-title">EXPENSE REPORT | <?php echo date('d-m-Y', strtotime($fromDate)); ?> to <?php echo date('d-m-Y', strtotime($toDate)); ?></div>
+    <div class="inv-title">EXPENSE REPORT | <?php echo formatDate($fromDate); ?> to <?php echo formatDate($toDate); ?></div>
     <div class="summary-box">
         <div class="summary-item danger"><div class="label">Total Expenses</div><div class="amount"><?php echo formatCurrency($totalAmount); ?></div></div>
         <div class="summary-item success"><div class="label">Total Paid</div><div class="amount"><?php echo formatCurrency($totalPaid); ?></div></div>
@@ -114,7 +109,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
                 <?php if (count($expenses) > 0): $c = 1; foreach($expenses as $ex): ?>
                 <tr>
                     <td><?php echo $c++; ?></td>
-                    <td><?php echo date('d-m-Y', strtotime($ex['expense_date'])); ?></td>
+                    <td><?php echo formatDate($ex['expense_date']); ?></td>
                     <td><strong><?php echo htmlspecialchars($ex['expense_no']); ?></strong></td>
                     <td><?php echo htmlspecialchars($ex['category']); ?></td>
                     <td><?php echo htmlspecialchars($ex['description'] ?? ''); ?></td>
@@ -129,7 +124,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
             <tfoot><tr style="background:#e9ecef; font-weight:700;"><td colspan="5" style="text-align:right"><strong>TOTAL</strong></td><td style="text-align:right"><strong><?php echo formatCurrency($totalAmount); ?></strong></td><td style="text-align:right"><strong><?php echo formatCurrency($totalPaid); ?></strong></td><td></td></tr></tfoot>
         </table>
     </div>
-    <div class="inv-footer"><p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p></div>
+    <div class="inv-footer"><p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo CLIENT_NAME; ?></p></div>
 </div>
 </div>
 <script>

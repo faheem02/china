@@ -114,7 +114,7 @@ include '../includes/sidebar.php';
                         <tbody>
                             <tr class="table-secondary">
                                 <td></td>
-                                <td><?php echo date('d-m-Y'); ?></td>
+                                <td><?php echo formatDate($customer['date_time']); ?></td>
                                 <td><strong>Opening Balance</strong></td>
                                 <td><small class="text-muted">(<?php echo ucfirst($customer['opening_balance_type'] ?? 'receivable'); ?>)</small></td>
                                 <td></td>
@@ -135,7 +135,7 @@ include '../includes/sidebar.php';
                                 ?>
                                 <tr>
                                     <td><?php echo $counter++; ?></td>
-                                    <td><?php echo date('d-m-Y', strtotime($entry['trans_date'])); ?></td>
+                                    <td><?php echo formatDate($entry['trans_date']); ?></td>
                                     <td><strong><?php echo htmlspecialchars($entry['ref_no']); ?></strong></td>
                                     <td>
                                         <span class="badge bg-<?php echo $entry['trans_type'] == 'Sale' ? 'primary' : 'success'; ?>">

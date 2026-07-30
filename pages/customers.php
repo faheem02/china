@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if ($id > 0) {
             $sql = "UPDATE customers SET customer_name = ?, company_name = ?, contact_person = ?, phone = ?, email = ?, address = ?, city = ?, opening_balance = ?, opening_balance_type = ?, status = ?, date_time = ? WHERE id = ?";
-            $result = modifyData($sql, 'sssssssdssi', [$customer_name, $company_name, $contact_person, $phone, $email, $address, $city, $opening_balance, $opening_balance_type, $status, $currentDateTime, $id]);
+            $result = modifyData($sql, 'sssssssdsssi', [$customer_name, $company_name, $contact_person, $phone, $email, $address, $city, $opening_balance, $opening_balance_type, $status, $currentDateTime, $id]);
             
             if ($result !== false) {
                 setFlash('Customer updated successfully!', 'success');
@@ -194,7 +194,7 @@ include '../includes/sidebar.php';
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="8" class="text-center text-muted py-3">
+                                    <td colspan="7" class="text-center text-muted py-3">
                                         <i class="fas fa-info-circle me-2"></i>No customers found
                                     </td>
                                 </tr>

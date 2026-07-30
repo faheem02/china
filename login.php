@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Manufacturing ERP System</title>
+    <title>Login - <?php echo CLIENT_NAME; ?></title>
     
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -209,8 +209,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="icon">
                     <i class="fas fa-industry"></i>
                 </div>
-                <h3>ERP System</h3>
-                <p>Manufacturing Enterprise Resource Planning</p>
+                <h3><?php echo CLIENT_NAME_SHORT; ?></h3>
+                <p><?php echo CLIENT_NAME; ?></p>
             </div>
             
             <div class="login-body">

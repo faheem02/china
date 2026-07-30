@@ -203,7 +203,7 @@ include '../includes/sidebar.php';
                                     <tr>
                                         <td><?php echo $j++; ?></td>
                                         <td><strong><?php echo htmlspecialchars($ve['expense_no']); ?></strong></td>
-                                        <td><?php echo date('d-m-Y', strtotime($ve['expense_date'])); ?></td>
+                                        <td><?php echo formatDate($ve['expense_date']); ?></td>
                                         <td><?php echo htmlspecialchars($ve['description'] ?: '-'); ?></td>
                                         <td><?php echo formatCurrency($ve['amount']); ?></td>
                                         <td><?php echo formatCurrency($ve['paid_amount']); ?></td>

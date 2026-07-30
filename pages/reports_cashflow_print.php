@@ -12,10 +12,10 @@ $supplierPaidCash = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM 
 $expensePaid = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM expenses WHERE expense_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
 $empPaidCash = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM employee_payments WHERE payment_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
 $partyPaidCash = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM party_transactions WHERE type='paid' AND payment_method='cash' AND transaction_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
-$salesBankReceived = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM customer_receipts WHERE payment_method IN ('bank_transfer','cheque') AND payment_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
-$partyReceivedBank = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM party_transactions WHERE type='received' AND payment_method IN ('bank_transfer','cheque') AND transaction_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
-$supplierPaidBank = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM supplier_payments WHERE payment_type IN ('bank_transfer','cheque') AND payment_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
-$partyPaidBank = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM party_transactions WHERE type='paid' AND payment_method IN ('bank_transfer','cheque') AND transaction_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
+$salesBankReceived = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM customer_receipts WHERE payment_method IN ('bank','bank_transfer','cheque') AND payment_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
+$partyReceivedBank = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM party_transactions WHERE type='received' AND payment_method IN ('bank','bank_transfer','cheque') AND transaction_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
+$supplierPaidBank = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM supplier_payments WHERE payment_type IN ('bank','bank_transfer','cheque') AND payment_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
+$partyPaidBank = (float)getRow("SELECT COALESCE(SUM(amount),0) AS total FROM party_transactions WHERE type='paid' AND payment_method IN ('bank','bank_transfer','cheque') AND transaction_date BETWEEN ? AND ?", 'ss', [$fromDate, $toDate])['total'];
 
 $totalCashInflow = $salesCashReceived + $partyReceivedCash;
 $totalCashOutflow = $supplierPaidCash + $expensePaid + $empPaidCash + $partyPaidCash;
@@ -78,17 +78,12 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
 </div>
 <div class="ledger-wrapper">
 <div class="ledger-a4" id="ledgerContent">
-    <div class="inv-header">
-        <h3>CASH FLOW STATEMENT</h3>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <?php if ($company['address'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;"><?php echo htmlspecialchars($company['address']); ?></p><?php endif; ?>
-        <?php if ($company['phone'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;">Ph: <?php echo htmlspecialchars($company['phone']); ?></p><?php endif; ?>
-    </div>
+    <?php include '../includes/print_branding.php'; ?>
     <div class="inv-meta">
-        <div><strong>Period:</strong> <?php echo date('d-m-Y', strtotime($fromDate)); ?> to <?php echo date('d-m-Y', strtotime($toDate)); ?></div>
+        <div><strong>Period:</strong> <?php echo formatDate($fromDate); ?> to <?php echo formatDate($toDate); ?></div>
         <div style="text-align:right"><strong>Printed:</strong> <?php echo date('d-m-Y h:i A'); ?><br><strong>User:</strong> <?php echo isset($_SESSION['full_name']) ? htmlspecialchars($_SESSION['full_name']) : 'Admin'; ?></div>
     </div>
-    <div class="inv-title">CASH FLOW STATEMENT | <?php echo date('d-m-Y', strtotime($fromDate)); ?> to <?php echo date('d-m-Y', strtotime($toDate)); ?></div>
+    <div class="inv-title">CASH FLOW STATEMENT | <?php echo formatDate($fromDate); ?> to <?php echo formatDate($toDate); ?></div>
     <div class="summary-box">
         <div class="summary-item <?php echo $netCashFlow >= 0 ? 'success' : 'danger'; ?>"><div class="label">Net Cash Flow</div><div class="amount"><?php echo formatCurrency($netCashFlow); ?></div></div>
         <div class="summary-item success"><div class="label">Total Cash In</div><div class="amount"><?php echo formatCurrency($totalCashInflow); ?></div></div>
@@ -135,7 +130,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
             </div>
         </div>
     </div>
-    <div class="inv-footer"><p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p></div>
+    <div class="inv-footer"><p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo CLIENT_NAME; ?></p></div>
 </div>
 </div>
 <script>

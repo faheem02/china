@@ -65,7 +65,7 @@ foreach($periodTxns as $t) {
     <div class="card-header"><i class="fas fa-exchange-alt me-2"></i>Period Transactions</div>
     <div class="card-body"><div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Date</th><th>Voucher</th><th>Party</th><th>Type</th><th class="text-end">Amount</th><th>Payment</th><th>Description</th></tr></thead><tbody>
     <?php foreach($periodTxns as $t):?>
-    <tr><td><?php echo date('d-m-Y', strtotime($t['transaction_date']));?></td><td><strong><?php echo htmlspecialchars($t['transaction_no']);?></strong></td><td><?php echo htmlspecialchars($t['party_name']);?></td><td><span class="badge bg-<?php echo $t['type']==='payable'?'warning':($t['type']==='received'?'success':'primary');?>"><?php echo ucfirst($t['type']);?></span></td><td class="text-end fw-bold"><?php echo formatCurrency($t['amount']);?></td><td><?php echo ucfirst($t['payment_method']);?></td><td><?php echo htmlspecialchars($t['description']?:'-');?></td></tr>
+    <tr><td><?php echo formatDate($t['transaction_date']);?></td><td><strong><?php echo htmlspecialchars($t['transaction_no']);?></strong></td><td><?php echo htmlspecialchars($t['party_name']);?></td><td><span class="badge bg-<?php echo $t['type']==='payable'?'warning':($t['type']==='received'?'success':'primary');?>"><?php echo ucfirst($t['type']);?></span></td><td class="text-end fw-bold"><?php echo formatCurrency($t['amount']);?></td><td><?php echo ucfirst($t['payment_method']);?></td><td><?php echo htmlspecialchars($t['description']?:'-');?></td></tr>
     <?php endforeach;?></tbody></table></div></div>
 </div></div></div>
 

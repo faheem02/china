@@ -38,14 +38,13 @@ $grandPaid = $supplierType === 'local' ? array_sum(array_column($suppliers, 'tot
 <div class="row"><div class="col-12"><div class="card shadow-sm">
     <div class="card-header"><i class="fas fa-truck me-2"></i><?php echo $title;?></div>
     <div class="card-body"><div class="table-responsive"><table class="table table-striped table-hover"><thead><tr>
-        <th>Name</th><th>Contact</th><th>Phone</th><th>Purchases</th>
+        <th>Name</th><th>Phone</th><th>Purchases</th>
         <?php if($supplierType==='local'):?><th class="text-end">Total Paid</th><th class="text-end">Outstanding</th>
         <?php else:?><th class="text-end">Paid (CNY)</th><th class="text-end">Balance (CNY)</th><?php endif;?>
     </tr></thead><tbody>
     <?php foreach($suppliers as $s): ?>
     <tr>
         <td><strong><?php echo htmlspecialchars($s['supplier_name']);?></strong></td>
-        <td><?php echo htmlspecialchars($s['contact_person']?:'-');?></td>
         <td><?php echo htmlspecialchars($s['phone']?:'-');?></td>
         <td><?php echo $s['purchase_count'];?></td>
         <td class="text-end"><?php echo $supplierType==='local' ? formatCurrency($s['total_paid']) : number_format($s['total_paid_cny'],2);?></td>

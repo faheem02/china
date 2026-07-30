@@ -12,12 +12,12 @@ $totalGoods     = (getRow("SELECT COUNT(*) as t FROM finished_goods WHERE status
 
 // ── Financial ──
 $cashBalance = (getRow("SELECT COALESCE(balance,0) as t FROM accounts WHERE account_type='Cash' ORDER BY id DESC LIMIT 1")['t'] ?? 0);
-$bankBalance = (getRow("SELECT COALESCE(SUM(current_balance),0) as t FROM banks WHERE status='active'")['t'] ?? 0);
-$customerOutstanding = (getRow("SELECT COALESCE(SUM(balance),0) as t FROM customers WHERE status='active' AND balance > 0")['t'] ?? 0);
-$supplierOutstanding = (getRow("SELECT COALESCE(SUM(balance),0) as t FROM local_suppliers WHERE status='active' AND balance > 0")['t'] ?? 0);
+$bankBalance = (getRow("SELECT COALESCE(balance,0) as t FROM accounts WHERE account_type='Bank' ORDER BY id DESC LIMIT 1")['t'] ?? 0);
+$customerOutstanding = (getRow("SELECT COALESCE(SUM(current_balance),0) as t FROM customers WHERE status='active' AND current_balance > 0")['t'] ?? 0);
+$supplierOutstanding = (getRow("SELECT COALESCE(SUM(current_balance),0) as t FROM local_suppliers WHERE status='active' AND current_balance > 0")['t'] ?? 0);
 
 // ── FIXED: chinese_suppliers uses balance_cny instead of balance ──
-$chineseSupplierOutstanding = (getRow("SELECT COALESCE(SUM(balance_cny),0) as t FROM chinese_suppliers WHERE status='active' AND balance_cny > 0")['t'] ?? 0);
+$chineseSupplierOutstanding = (getRow("SELECT COALESCE(SUM(current_balance),0) as t FROM chinese_suppliers WHERE status='active' AND current_balance > 0")['t'] ?? 0);
 
 // ── FIXED: parties table may not exist, handle gracefully ──
 $partyReceivable = 0;

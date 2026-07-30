@@ -16,7 +16,15 @@ $cnyCurrency = getRow("SELECT id, currency_code, exchange_rate FROM currencies W
 $cnyId = $cnyCurrency ? $cnyCurrency['id'] : 2;
 $exchangeRate = $cnyCurrency ? (float)$cnyCurrency['exchange_rate'] : 1.00;
 
-$suppliers = getRows("SELECT id, supplier_name, company_name, current_balance FROM chinese_suppliers WHERE status = 'active' ORDER BY supplier_name");
+$suppliers = getRows("SELECT s.id, s.supplier_name, s.company_name, s.opening_balance,
+    COALESCE(SUM(ip.balance_cny), 0) AS purchase_balance,
+    COALESCE((SELECT SUM(sp.amount_cny) FROM chinese_supplier_payments sp WHERE sp.supplier_id = s.id AND sp.status = 'completed'), 0) AS payments_made,
+    (s.opening_balance + COALESCE(SUM(ip.balance_cny), 0) - COALESCE((SELECT SUM(sp.amount_cny) FROM chinese_supplier_payments sp WHERE sp.supplier_id = s.id AND sp.status = 'completed'), 0)) AS current_balance
+    FROM chinese_suppliers s
+    LEFT JOIN import_purchases ip ON ip.supplier_id = s.id
+    WHERE s.status = 'active'
+    GROUP BY s.id
+    ORDER BY s.supplier_name");
 $rawMaterials = getRows("SELECT id, material_code, material_name, unit, purchase_price_pkr, selling_price, current_stock FROM raw_materials WHERE status = 'active' ORDER BY material_name");
 $finishedGoods = getRows("SELECT id, product_code, product_name, unit, cost_price, selling_price, current_stock FROM finished_goods WHERE status = 'active' ORDER BY product_name");
 
@@ -82,8 +90,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $messageType = 'danger';
     } else {
         $currentDateTime = getCurrentDateTime();
+        $paid_amount_cny = (float)$_POST['paid_amount_cny'];
+        $paid_amount_pkr = $paid_amount_cny * $exchange_rate;
         $total_pkr_val = $total_cny * $exchange_rate;
         $grand_total_pkr_val = $grand_total_cny * $exchange_rate;
+        $balance_cny = $grand_total_cny - $paid_amount_cny;
+        $balance_pkr = $grand_total_pkr_val - $paid_amount_pkr;
 
         if ($id > 0) {
             $oldItems = getRows("SELECT material_id, quantity, item_type FROM import_purchase_items WHERE purchase_id = ?", 'i', [$id]);
@@ -97,8 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $result = modifyData("UPDATE import_purchases SET supplier_id=?, purchase_date=?, invoice_no=?, exchange_rate=?, total_cny=?, total_pkr=?, previous_amount_cny=?, tax_amount_cny=?, grand_total_cny=?, grand_total_pkr=?, balance_cny=?, balance_pkr=?, date_time=? WHERE id=?",
-                'issdddddddddssi', [$supplier_id, $purchase_date, $invoice_no, $exchange_rate, $total_cny, $total_pkr_val, $previous_amount_cny, $tax_amount_cny, $grand_total_cny, $grand_total_pkr_val, $grand_total_cny, $grand_total_pkr_val, $currentDateTime, $id]);
+            $result = modifyData("UPDATE import_purchases SET supplier_id=?, purchase_date=?, invoice_no=?, exchange_rate=?, total_cny=?, total_pkr=?, previous_amount_cny=?, tax_amount_cny=?, grand_total_cny=?, grand_total_pkr=?, paid_amount_cny=?, paid_amount_pkr=?, balance_cny=?, balance_pkr=?, date_time=? WHERE id=?",
+                'issdddddddddddsi', [$supplier_id, $purchase_date, $invoice_no, $exchange_rate, $total_cny, $total_pkr_val, $previous_amount_cny, $tax_amount_cny, $grand_total_cny, $grand_total_pkr_val, $paid_amount_cny, $paid_amount_pkr, $balance_cny, $balance_pkr, $currentDateTime, $id]);
 
             if ($result !== false) {
                 modifyData("DELETE FROM import_purchase_items WHERE purchase_id = ?", 'i', [$id]);
@@ -135,12 +147,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             $purchase_no = generateCode('IP');
-            $result = insertData("INSERT INTO import_purchases (purchase_no, supplier_id, purchase_date, invoice_no, exchange_rate, total_cny, total_pkr, previous_amount_cny, tax_amount_cny, grand_total_cny, grand_total_pkr, balance_cny, balance_pkr, date_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                'sissddddddddds', [$purchase_no, $supplier_id, $purchase_date, $invoice_no, $exchange_rate, $total_cny, $total_pkr_val, $previous_amount_cny, $tax_amount_cny, $grand_total_cny, $grand_total_pkr_val, $grand_total_cny, $grand_total_pkr_val, $currentDateTime]);
+            $result = insertData("INSERT INTO import_purchases (purchase_no, supplier_id, purchase_date, invoice_no, exchange_rate, total_cny, total_pkr, previous_amount_cny, tax_amount_cny, grand_total_cny, grand_total_pkr, paid_amount_cny, paid_amount_pkr, balance_cny, balance_pkr, date_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                'sissddddddddddds', [$purchase_no, $supplier_id, $purchase_date, $invoice_no, $exchange_rate, $total_cny, $total_pkr_val, $previous_amount_cny, $tax_amount_cny, $grand_total_cny, $grand_total_pkr_val, $paid_amount_cny, $paid_amount_pkr, $balance_cny, $balance_pkr, $currentDateTime]);
 
             if ($result !== false) {
                 $purchase_id = $result;
-                foreach ($materialsPost as $mat) {
+                foreach ($materialsPost as $idx => $mat) {
                     $rawId = intval($mat['material_id'] ?? 0);
                     $qty = (float)($mat['quantity'] ?? 0);
                     $upCny = (float)($mat['unit_price_cny'] ?? 0);
@@ -152,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } else {
                         $realId = $rawId;
                     }
-                    if ($realId <= 0 || $qty <= 0) continue;
+                    if ($realId <= 0 || $qty <= 0) { continue; }
                     $upPkr = $upCny * $exchange_rate;
                     $totCny = $qty * $upCny;
                     $totPkr = $qty * $upPkr;
@@ -290,11 +302,12 @@ include '../includes/sidebar.php';
                                         </tr>
                                     </thead>
                                     <tbody id="materialBody">
+                                        <?php $rowIdx = 0; ?>
                                         <?php if ($editItems): ?>
                                             <?php foreach ($editItems as $item): ?>
                                                 <tr>
                                                     <td>
-                                                        <select class="form-select form-select-sm material-select" name="materials[][material_id]" required onchange="onMaterialSelect(this)">
+                                                        <select class="form-select form-select-sm material-select" name="materials[<?php echo $rowIdx; ?>][material_id]" required onchange="onMaterialSelect(this)">
                                                             <option value="">Select</option>
                                                             <?php foreach ($materials as $m): ?>
                                                                 <option value="<?php echo $m['id']; ?>"
@@ -307,18 +320,19 @@ include '../includes/sidebar.php';
                                                             <?php endforeach; ?>
                                                         </select>
                                                     </td>
-                                                    <td><input type="number" step="0.01" class="form-control form-control-sm qty" name="materials[][quantity]" value="<?php echo $item['quantity']; ?>" required oninput="calcRow(this)"></td>
-                                                    <td><input type="number" step="0.01" class="form-control form-control-sm unit-price-cny" name="materials[][unit_price_cny]" value="<?php echo $item['unit_price_cny']; ?>" required oninput="calcRow(this)"></td>
+                                                    <td><input type="number" step="0.01" class="form-control form-control-sm qty" name="materials[<?php echo $rowIdx; ?>][quantity]" value="<?php echo $item['quantity']; ?>" required oninput="calcRow(this)"></td>
+                                                    <td><input type="number" step="0.01" class="form-control form-control-sm unit-price-cny" name="materials[<?php echo $rowIdx; ?>][unit_price_cny]" value="<?php echo $item['unit_price_cny']; ?>" required oninput="calcRow(this)"></td>
                                                     <td><input type="text" class="form-control form-control-sm unit-price-pkr" value="<?php echo number_format($item['unit_price_pkr'], 2); ?>" readonly></td>
                                                     <td><input type="text" class="form-control form-control-sm row-total-cny" value="<?php echo number_format($item['total_cny'], 2); ?>" readonly></td>
                                                     <td><input type="text" class="form-control form-control-sm row-total-pkr" value="<?php echo number_format($item['total_pkr'], 2); ?>" readonly></td>
                                                     <td class="text-center"><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)"><i class="fas fa-times"></i></button></td>
                                                 </tr>
+                                            <?php $rowIdx++; ?>
                                             <?php endforeach; ?>
                                         <?php else: ?>
                                             <tr>
                                                 <td>
-                                                    <select class="form-select form-select-sm material-select" name="materials[][material_id]" required onchange="onMaterialSelect(this)">
+                                                    <select class="form-select form-select-sm material-select" name="materials[<?php echo $rowIdx; ?>][material_id]" required onchange="onMaterialSelect(this)">
                                                         <option value="">Select</option>
                                                         <?php foreach ($materials as $m): ?>
                                                             <option value="<?php echo $m['id']; ?>"
@@ -330,8 +344,8 @@ include '../includes/sidebar.php';
                                                         <?php endforeach; ?>
                                                     </select>
                                                 </td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm qty" name="materials[][quantity]" value="1" required oninput="calcRow(this)"></td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm unit-price-cny" name="materials[][unit_price_cny]" value="0" required oninput="calcRow(this)"></td>
+                                                <td><input type="number" step="0.01" class="form-control form-control-sm qty" name="materials[<?php echo $rowIdx; ?>][quantity]" value="1" required oninput="calcRow(this)"></td>
+                                                <td><input type="number" step="0.01" class="form-control form-control-sm unit-price-cny" name="materials[<?php echo $rowIdx; ?>][unit_price_cny]" value="0" required oninput="calcRow(this)"></td>
                                                 <td><input type="text" class="form-control form-control-sm unit-price-pkr" value="0.00" readonly></td>
                                                 <td><input type="text" class="form-control form-control-sm row-total-cny" value="0.00" readonly></td>
                                                 <td><input type="text" class="form-control form-control-sm row-total-pkr" value="0.00" readonly></td>
@@ -344,6 +358,8 @@ include '../includes/sidebar.php';
                         </div>
                     </div>
 
+                    <input type="hidden" name="tax_amount_cny" value="0.00">
+
                     <div class="row">
                         <div class="col-md-6">
                             <div class="card" style="border:2px solid #1a2332;">
@@ -353,33 +369,34 @@ include '../includes/sidebar.php';
                                 <div class="card-body">
                                     <table class="table table-sm mb-0">
                                         <tr>
-                                            <td style="width:50%;"><strong>Previous Amount (CNY)</strong></td>
-                                            <td class="text-end"><strong id="prevAmountDisplay"><?php echo $editPurchase ? number_format($editPurchase['previous_amount_cny'], 2) : '0.00'; ?></strong></td>
+                                            <td style="width:50%;"><strong>Previous Balance (CNY)</strong></td>
+                                            <td class="text-end"><strong id="prevBalanceDisplay"><?php echo $editPurchase ? number_format($editPurchase['previous_amount_cny'], 2) : '0.00'; ?></strong></td>
                                         </tr>
                                         <tr>
                                             <td><strong>Bill Amount (CNY)</strong></td>
                                             <td class="text-end"><strong id="billAmountDisplay">0.00</strong></td>
-                                        </tr>
-                                        <tr>
-                                            <td><strong>Total Amount (CNY)</strong></td>
-                                            <td class="text-end"><strong id="totalAmountDisplay" style="color:#0d6efd;">0.00</strong></td>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <strong>S. Tax Amount (CNY)</strong>
-                                            </td>
-                                            <td class="text-end">
-                                                <input type="number" step="0.01" class="form-control form-control-sm text-end" id="taxInput" name="tax_amount_cny"
-                                                       value="<?php echo $editPurchase ? $editPurchase['tax_amount_cny'] : '0.00'; ?>"
-                                                       style="width:140px;display:inline-block;font-weight:bold;"
-                                                       oninput="calcSummary()">
-                                            </td>
                                         </tr>
                                         <tr style="border-top:2px solid #1a2332;">
                                             <td><strong style="font-size:16px;">Grand Amount (CNY)</strong></td>
                                             <td class="text-end"><strong style="font-size:16px;color:#198754;" id="grandAmountDisplay">0.00</strong></td>
                                         </tr>
                                     </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-credit-card me-2"></i>Payment Details
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Paid Amount (CNY)</label>
+                                            <input type="number" step="0.01" class="form-control" id="paidAmountCny" name="paid_amount_cny" value="<?php echo $editPurchase ? $editPurchase['paid_amount_cny'] : '0.00'; ?>" oninput="calcSummary()">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -399,6 +416,7 @@ include '../includes/sidebar.php';
 
 <script>
 var materialsData = <?php echo json_encode(array_values($materials)); ?>;
+var materialRowIndex = <?php echo $rowIdx; ?>;
 
 function onSupplierChange() {
     var sel = document.getElementById('supplier_id');
@@ -406,6 +424,7 @@ function onSupplierChange() {
     var balance = parseFloat(opt.dataset.balance) || 0;
     document.getElementById('previous_amount_cny').value = balance.toFixed(2);
     document.getElementById('previous_balance_display').value = balance.toFixed(2);
+    document.getElementById('prevBalanceDisplay').textContent = balance.toFixed(2);
     calcSummary();
 }
 
@@ -432,9 +451,10 @@ function buildMaterialOptions() {
 function addMaterialRow() {
     var tbody = document.getElementById('materialBody');
     var row = tbody.insertRow();
-    var html = '<td><select class="form-select form-select-sm material-select" name="materials[][material_id]" required onchange="onMaterialSelect(this)">' + buildMaterialOptions() + '</select></td>';
-    html += '<td><input type="number" step="0.01" class="form-control form-control-sm qty" name="materials[][quantity]" value="1" required oninput="calcRow(this)"></td>';
-    html += '<td><input type="number" step="0.01" class="form-control form-control-sm unit-price-cny" name="materials[][unit_price_cny]" value="0" required oninput="calcRow(this)"></td>';
+    var idx = materialRowIndex++;
+    var html = '<td><select class="form-select form-select-sm material-select" name="materials['+idx+'][material_id]" required onchange="onMaterialSelect(this)">' + buildMaterialOptions() + '</select></td>';
+    html += '<td><input type="number" step="0.01" class="form-control form-control-sm qty" name="materials['+idx+'][quantity]" value="1" required oninput="calcRow(this)"></td>';
+    html += '<td><input type="number" step="0.01" class="form-control form-control-sm unit-price-cny" name="materials['+idx+'][unit_price_cny]" value="0" required oninput="calcRow(this)"></td>';
     html += '<td><input type="text" class="form-control form-control-sm unit-price-pkr" value="0.00" readonly></td>';
     html += '<td><input type="text" class="form-control form-control-sm row-total-cny" value="0.00" readonly></td>';
     html += '<td><input type="text" class="form-control form-control-sm row-total-pkr" value="0.00" readonly></td>';
@@ -474,14 +494,11 @@ function calcSummary() {
         billCny += parseFloat(row.querySelector('.row-total-cny').value) || 0;
     });
     var prevCny = parseFloat(document.getElementById('previous_amount_cny').value) || 0;
-    var taxCny = parseFloat(document.getElementById('taxInput').value) || 0;
-    var totalCny = prevCny + billCny;
-    var grandCny = totalCny + taxCny;
+    var grandCny = prevCny + billCny;
     var rate = getRate();
 
-    document.getElementById('billAmountDisplay').value = billCny.toFixed(2);
+    document.getElementById('prevBalanceDisplay').textContent = prevCny.toFixed(2);
     document.getElementById('billAmountDisplay').textContent = billCny.toFixed(2);
-    document.getElementById('totalAmountDisplay').textContent = totalCny.toFixed(2);
     document.getElementById('grandAmountDisplay').textContent = grandCny.toFixed(2);
 
     document.getElementById('total_cny').value = billCny.toFixed(2);

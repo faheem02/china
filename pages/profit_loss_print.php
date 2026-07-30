@@ -80,17 +80,12 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
 </div>
 <div class="ledger-wrapper">
 <div class="ledger-a4" id="ledgerContent">
-    <div class="inv-header">
-        <h3>PROFIT & LOSS STATEMENT</h3>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <?php if ($company['address'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;"><?php echo htmlspecialchars($company['address']); ?></p><?php endif; ?>
-        <?php if ($company['phone'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;">Ph: <?php echo htmlspecialchars($company['phone']); ?></p><?php endif; ?>
-    </div>
+    <?php include '../includes/print_branding.php'; ?>
     <div class="inv-meta">
-        <div><strong>Period:</strong> <?php echo date('d-m-Y', strtotime($fromDate)); ?> to <?php echo date('d-m-Y', strtotime($toDate)); ?></div>
+        <div><strong>Period:</strong> <?php echo formatDate($fromDate); ?> to <?php echo formatDate($toDate); ?></div>
         <div style="text-align:right"><strong>Printed:</strong> <?php echo date('d-m-Y h:i A'); ?><br><strong>User:</strong> <?php echo isset($_SESSION['full_name']) ? htmlspecialchars($_SESSION['full_name']) : 'Admin'; ?></div>
     </div>
-    <div class="inv-title">PROFIT & LOSS STATEMENT | <?php echo date('d-m-Y', strtotime($fromDate)); ?> to <?php echo date('d-m-Y', strtotime($toDate)); ?></div>
+    <div class="inv-title">PROFIT & LOSS STATEMENT | <?php echo formatDate($fromDate); ?> to <?php echo formatDate($toDate); ?></div>
     <div class="summary-box">
         <div class="summary-item <?php echo $netProfit >= 0 ? 'success' : 'danger'; ?>"><div class="label">Net Profit</div><div class="amount"><?php echo formatCurrency($netProfit); ?></div></div>
         <div class="summary-item primary"><div class="label">Gross Profit</div><div class="amount"><?php echo formatCurrency($grossProfit); ?></div></div>
@@ -148,7 +143,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
         </table>
     </div>
     <?php endif; ?>
-    <div class="inv-footer"><p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p></div>
+    <div class="inv-footer"><p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo CLIENT_NAME; ?></p></div>
 </div>
 </div>
 <script>

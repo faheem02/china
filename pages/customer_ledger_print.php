@@ -90,12 +90,7 @@ body { background: #f0f2f5; }
 
 <div class="ledger-wrapper">
 <div class="ledger-a4" id="ledgerContent">
-    <div class="inv-header">
-        <h3>CUSTOMER LEDGER</h3>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <?php if ($company['address'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;"><?php echo htmlspecialchars($company['address']); ?></p><?php endif; ?>
-        <?php if ($company['phone'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;">Ph: <?php echo htmlspecialchars($company['phone']); ?></p><?php endif; ?>
-    </div>
+    <?php include '../includes/print_branding.php'; ?>
 
     <div class="inv-meta">
         <div>
@@ -106,7 +101,7 @@ body { background: #f0f2f5; }
         <div style="text-align:right">
             <strong>Date:</strong> <?php echo date('d-m-Y'); ?><br>
             <?php if ($fromDate || $toDate): ?>
-                <strong>Period:</strong> <?php echo $fromDate ? date('d-m-Y', strtotime($fromDate)) : 'Start'; ?> to <?php echo $toDate ? date('d-m-Y', strtotime($toDate)) : 'End'; ?>
+                <strong>Period:</strong> <?php echo $fromDate ? formatDate($fromDate) : 'Start'; ?> to <?php echo $toDate ? formatDate($toDate) : 'End'; ?>
             <?php endif; ?>
         </div>
     </div>
@@ -147,7 +142,7 @@ body { background: #f0f2f5; }
         <tbody>
             <tr style="background:#f0f0f0;">
                 <td></td>
-                <td><?php echo date('d-m-Y'); ?></td>
+                <td><?php echo formatDate($customer['date_time']); ?></td>
                 <td><strong>Opening Balance</strong></td>
                 <td><small>(<?php echo ucfirst($customer['opening_balance_type'] ?? 'receivable'); ?>)</small></td>
                 <td style="text-align:right"></td>
@@ -166,7 +161,7 @@ body { background: #f0f2f5; }
                 ?>
                 <tr>
                     <td><?php echo $counter++; ?></td>
-                    <td><?php echo date('d-m-Y', strtotime($entry['trans_date'])); ?></td>
+                    <td><?php echo formatDate($entry['trans_date']); ?></td>
                     <td><strong><?php echo htmlspecialchars($entry['ref_no']); ?></strong></td>
                     <td>
                         <span class="badge bg-<?php echo $entry['trans_type'] == 'Sale' ? 'primary' : 'success'; ?>">
@@ -194,7 +189,7 @@ body { background: #f0f2f5; }
     </table>
 
     <div class="inv-footer">
-        <p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
+        <p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo CLIENT_NAME; ?></p>
     </div>
 </div>
 </div>

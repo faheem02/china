@@ -11,21 +11,20 @@ $r = $isInPages ? '../' : '';
 $localPurchases = ['add_local_purchase.php', 'local_purchases.php'];
 $importPurchases = ['add_import_purchase.php', 'import_purchases.php'];
 $supplierPages = ['local_suppliers.php', 'suppliers_summary.php', 'supplier_payments.php', 'supplier_detail.php', 'supplier_ledger.php', 'chinese_suppliers.php', 'chinese_suppliers_summary.php', 'chinese_supplier_payment.php', 'chinese_supplier_ledger.php'];
-$finishedGoods = ['finished_goods.php', 'add_finished_goods.php', 'products.php', 'add_product.php'];
+$finishedGoods = ['finished_goods.php', 'add_finished_goods.php', 'products.php', 'add_product.php', 'finished_goods_receiving.php'];
 $issuancePages = ['material_issue.php', 'raw_materials.php', 'add_raw_materials.php'];
 $salesPages = ['new_sale.php', 'sales.php', 'view_hold_bills.php', 'sale_print.php'];
 $customerPages = ['add_customer.php', 'customers.php', 'customer_receiving.php', 'customer_ledger.php'];
 $partyPages = ['add_party.php', 'parties.php', 'add_party_payable.php', 'add_party_received.php', 'add_party_paid.php'];
 $employeePages = ['add_employee.php', 'employees.php', 'employee_payable.php', 'employee_paid.php'];
 $expensePages = ['expense_heads.php', 'expenses.php'];
-$accountPages = ['accounts.php', 'cashbook.php', 'bankbook.php', 'banks.php', 'add_bank.php', 'balance_sheet.php', 'company_settings.php'];
-$reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports_cashflow.php', 'reports_purchases.php', 'reports_sales.php', 'reports_inventory.php', 'reports_expenses.php', 'reports_production.php', 'reports_suppliers.php', 'reports_customers.php', 'reports_parties.php', 'reports_employees.php', 'all_customers_closing.php', 'all_suppliers_closing.php', 'all_parties_closing.php'];
+$accountPages = ['accounts.php', 'cashbook.php', 'bankbook.php', 'balance_sheet.php', 'company_settings.php'];
+$reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports_cashflow.php', 'reports_purchases.php', 'reports_sales.php', 'reports_inventory.php', 'reports_expenses.php', 'reports_suppliers.php', 'reports_customers.php', 'reports_parties.php', 'reports_employees.php', 'all_customers_closing.php', 'all_suppliers_closing.php', 'all_parties_closing.php'];
 ?>
 <!-- Sidebar -->
 <nav id="sidebar">
-    <div class="sidebar-header">
-        <h3>ERP System</h3>
-        <small>Manufacturing ERP v1.0</small>
+    <div class="sidebar-header" style="text-align:center;">
+        <img src="<?php echo $r; ?>assets/img/logo.svg" alt="Long Life" style="max-width:100%;height:auto;display:block;margin:0 auto;max-height:72px;">
     </div>
     
     <div class="sidebar-nav">
@@ -92,6 +91,8 @@ $reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports
                 <div class="sub-menu">
                     <a href="<?php echo $p; ?>add_finished_goods.php"><i class="fas fa-angle-right me-2"></i>Add Finished Good</a>
                     <a href="<?php echo $p; ?>finished_goods.php"><i class="fas fa-angle-right me-2"></i>View Finished Goods</a>
+                    <div class="sub-group-label mt-2">Stock</div>
+                    <a href="<?php echo $p; ?>finished_goods_receiving.php"><i class="fas fa-angle-right me-2"></i>Receiving</a>
                 </div>
             </div>
         </div>
@@ -201,7 +202,6 @@ $reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports
                     <a href="<?php echo $p; ?>accounts.php"><i class="fas fa-angle-right me-2"></i>Ledger</a>
                     <a href="<?php echo $p; ?>cashbook.php"><i class="fas fa-angle-right me-2"></i>Cash Book</a>
                     <a href="<?php echo $p; ?>bankbook.php"><i class="fas fa-angle-right me-2"></i>Bank Book</a>
-                    <a href="<?php echo $p; ?>banks.php"><i class="fas fa-angle-right me-2"></i>Banks</a>
                     <a href="<?php echo $p; ?>balance_sheet.php"><i class="fas fa-angle-right me-2"></i>Balance Sheet</a>
                     <div class="sub-group-label mt-2">Setup</div>
                     <a href="<?php echo $p; ?>company_settings.php"><i class="fas fa-angle-right me-2"></i>Company Settings</a>
@@ -226,7 +226,6 @@ $reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports
                     <a href="<?php echo $p; ?>reports_sales.php"><i class="fas fa-angle-right me-2"></i>Sales Reports</a>
                     <a href="<?php echo $p; ?>reports_inventory.php"><i class="fas fa-angle-right me-2"></i>Inventory Reports</a>
                     <a href="<?php echo $p; ?>reports_expenses.php"><i class="fas fa-angle-right me-2"></i>Expense Reports</a>
-                    <a href="<?php echo $p; ?>reports_production.php"><i class="fas fa-angle-right me-2"></i>Production Reports</a>
                     <div class="sub-group-label mt-2">Parties & People</div>
                     <a href="<?php echo $p; ?>reports_suppliers.php"><i class="fas fa-angle-right me-2"></i>Supplier Reports</a>
                     <a href="<?php echo $p; ?>reports_customers.php"><i class="fas fa-angle-right me-2"></i>Customer Reports</a>

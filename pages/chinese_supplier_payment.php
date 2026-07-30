@@ -34,6 +34,10 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $payment = getRow($sql, 'i', [$id]);
     
     if ($payment) {
+        // Restore Chinese supplier current balance
+        modifyData("UPDATE chinese_suppliers SET current_balance = current_balance + ? WHERE id = ?", 'di', [$payment['amount_cny'], $payment['supplier_id']]);
+        // Delete from accounts first
+        modifyData("DELETE FROM accounts WHERE reference_type = 'Chinese Payment' AND reference_id = ?", 'i', [$id]);
         // Delete payment
         $sql = "DELETE FROM chinese_supplier_payments WHERE id = ?";
         $result = modifyData($sql, 'i', [$id]);
@@ -58,8 +62,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $exchange_rate = (float)$_POST['exchange_rate'];
     $payment_type = $_POST['payment_type'];
     $reference_no = trim($_POST['reference_no']);
-    $bank_name = trim($_POST['bank_name']);
-    $cheque_no = trim($_POST['cheque_no']);
     $notes = trim($_POST['notes']);
     $status = $_POST['status'];
     
@@ -97,8 +99,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     exchange_rate = ?,
                     payment_type = ?,
                     reference_no = ?,
-                    bank_name = ?,
-                    cheque_no = ?,
                     notes = ?,
                     status = ?,
                     date_time = ?
@@ -112,15 +112,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $exchange_rate,
                 $payment_type,
                 $reference_no,
-                $bank_name,
-                $cheque_no,
                 $notes,
                 $status,
                 $currentDateTime,
                 $id
             ];
             
-            $result = modifyData($sql, 'isddsdssssssi', $params);
+            $result = modifyData($sql, 'isddsdssssi', $params);
             
             if ($result !== false) {
                 setFlash('Payment updated successfully!', 'success');
@@ -134,9 +132,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Insert
             $sql = "INSERT INTO chinese_supplier_payments (
                     payment_no, supplier_id, payment_date, amount_cny, amount_pkr,
-                    exchange_rate, payment_type, reference_no, bank_name, cheque_no,
+                    exchange_rate, payment_type, reference_no,
                     notes, status, date_time
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             
             $params = [
                 $payment_no,
@@ -147,16 +145,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $exchange_rate,
                 $payment_type,
                 $reference_no,
-                $bank_name,
-                $cheque_no,
                 $notes,
                 $status,
                 $currentDateTime
             ];
             
-            $result = insertData($sql, 'sisdddssssss', $params);
+            $result = insertData($sql, 'sisdddsssss', $params);
             
             if ($result) {
+                // Insert into accounts ledger
+                $accType = ($payment_type === 'cash') ? 'Cash' : 'Bank';
+                $lastEntry = getRow("SELECT balance FROM accounts WHERE account_type = ? ORDER BY id DESC LIMIT 1", 's', [$accType]);
+                $lastBalance = $lastEntry ? (float)$lastEntry['balance'] : 0;
+                $supplierRow = getRow("SELECT supplier_name FROM chinese_suppliers WHERE id = ?", 'i', [$supplier_id]);
+                $supplierName = $supplierRow ? $supplierRow['supplier_name'] : 'Chinese Supplier';
+                $desc = 'Payment to Chinese supplier - ' . $supplierName . ' (CNY ' . number_format($amount_cny, 2) . ' @ ' . number_format($exchange_rate, 4) . ') [' . $payment_no . ']';
+                insertData(
+                    "INSERT INTO accounts (account_date, account_type, reference_type, reference_id, description, debit, credit, balance, date_time) VALUES (?, ?, 'Chinese Payment', ?, ?, ?, 0, ?, ?)",
+                    'ssisdds', [$payment_date, $accType, $result, $desc, $amount_pkr, $lastBalance + $amount_pkr, $currentDateTime]
+                );
+
+                // Update Chinese supplier current balance (in CNY)
+                modifyData("UPDATE chinese_suppliers SET current_balance = current_balance - ? WHERE id = ?", 'di', [$amount_cny, $supplier_id]);
+
                 setFlash('Payment of ¥ ' . number_format($amount_cny, 2) . ' made successfully!', 'success');
                 header('Location: ' . $_SERVER['PHP_SELF']);
                 exit;
@@ -264,7 +275,7 @@ include '../includes/sidebar.php';
                                                 <small class="text-muted d-block text-truncate" style="max-width:180px;" title="<?php echo htmlspecialchars($payment['company_name']); ?>"><?php echo htmlspecialchars($payment['company_name']); ?></small>
                                             <?php endif; ?>
                                         </td>
-                                        <td class="text-nowrap"><?php echo date('d-m-Y', strtotime($payment['payment_date'])); ?></td>
+                                        <td class="text-nowrap"><?php echo formatDate($payment['payment_date']); ?></td>
                                         <td class="text-nowrap text-success fw-bold">¥ <?php echo number_format($payment['amount_cny'], 2); ?></td>
                                         <td class="text-nowrap">PKR <?php echo number_format($payment['amount_pkr'], 2); ?></td>
                                         <td class="text-nowrap"><?php echo number_format($payment['exchange_rate'], 4); ?></td>
@@ -284,12 +295,6 @@ include '../includes/sidebar.php';
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="9" class="text-center text-muted py-3">
-                                        <i class="fas fa-info-circle me-2"></i>No payments found
-                                    </td>
-                                </tr>
                             <?php endif; ?>
                         </tbody>
                         <tfoot class="table-primary">
@@ -378,23 +383,8 @@ include '../includes/sidebar.php';
                             <label for="payment_type" class="form-label">Payment Type *</label>
                             <select class="form-select" id="payment_type" name="payment_type" required>
                                 <option value="cash" <?php echo ($editPayment && $editPayment['payment_type'] == 'cash') ? 'selected' : ''; ?>>Cash</option>
-                                <option value="bank_transfer" <?php echo ($editPayment && $editPayment['payment_type'] == 'bank_transfer') ? 'selected' : ''; ?>>Bank Transfer</option>
-                                <option value="cheque" <?php echo ($editPayment && $editPayment['payment_type'] == 'cheque') ? 'selected' : ''; ?>>Cheque</option>
-                                <option value="online" <?php echo ($editPayment && $editPayment['payment_type'] == 'online') ? 'selected' : ''; ?>>Online Payment</option>
-                                <option value="telegraphic_transfer" <?php echo ($editPayment && $editPayment['payment_type'] == 'telegraphic_transfer') ? 'selected' : ''; ?>>Telegraphic Transfer (TT)</option>
+                                <option value="bank" <?php echo ($editPayment && $editPayment['payment_type'] == 'bank') ? 'selected' : ''; ?>>Bank</option>
                             </select>
-                        </div>
-                        
-                        <div class="col-md-6 mb-3" id="bankDiv" style="display: <?php echo ($editPayment && in_array($editPayment['payment_type'], ['bank_transfer', 'cheque', 'telegraphic_transfer'])) ? 'block' : 'none'; ?>">
-                            <label for="bank_name" class="form-label">Bank Name</label>
-                            <input type="text" class="form-control" id="bank_name" name="bank_name" 
-                                   value="<?php echo $editPayment ? htmlspecialchars($editPayment['bank_name']) : ''; ?>">
-                        </div>
-                        
-                        <div class="col-md-6 mb-3" id="chequeDiv" style="display: <?php echo ($editPayment && $editPayment['payment_type'] == 'cheque') ? 'block' : 'none'; ?>">
-                            <label for="cheque_no" class="form-label">Cheque No</label>
-                            <input type="text" class="form-control" id="cheque_no" name="cheque_no" 
-                                   value="<?php echo $editPayment ? htmlspecialchars($editPayment['cheque_no']) : ''; ?>">
                         </div>
                         
                         <div class="col-md-6 mb-3">
@@ -461,25 +451,6 @@ $(document).ready(function() {
         if (balance !== undefined) {
             $('#amount_cny').attr('max', balance);
             $('#amount_cny').attr('placeholder', 'Max: ' + symbol + ' ' + parseFloat(balance).toFixed(2));
-        }
-    });
-    
-    // Show/hide bank and cheque fields based on payment type
-    $('#payment_type').on('change', function() {
-        var type = $(this).val();
-        
-        if (type === 'bank_transfer' || type === 'cheque' || type === 'telegraphic_transfer') {
-            $('#bankDiv').show();
-        } else {
-            $('#bankDiv').hide();
-            $('#bank_name').val('');
-        }
-        
-        if (type === 'cheque') {
-            $('#chequeDiv').show();
-        } else {
-            $('#chequeDiv').hide();
-            $('#cheque_no').val('');
         }
     });
     

@@ -4,6 +4,9 @@ requireLogin();
 
 $pageTitle = 'Inventory Reports';
 
+$fromDate = $_GET['from_date'] ?? date('Y-m-01');
+$toDate = $_GET['to_date'] ?? date('Y-m-d');
+
 include '../includes/header.php';
 include '../includes/sidebar.php';
 include '../includes/print_header.php';
@@ -24,17 +27,19 @@ $products = getRows($fgSql);
 
 // Stock Summary
 $totalRmStock = 0;
-$lowStockRm = 0;
-foreach ($materials as $m) { $totalRmStock += $m['current_stock'] * $m['purchase_price_pkr']; if ($m['current_stock'] <= $m['minimum_stock']) $lowStockRm++; }
+foreach ($materials as $m) { $totalRmStock += $m['current_stock'] * $m['purchase_price_pkr']; }
 $totalFgStock = 0;
 $lowStockFg = 0;
 foreach ($products as $p) { $totalFgStock += $p['current_stock'] * $p['cost_price']; if ($p['current_stock'] <= $p['minimum_stock']) $lowStockFg++; }
 $totalInventory = $totalRmStock + $totalFgStock;
 
 // Recent stock movements (last 50 issues)
-$movements = getRows("SELECT mi.*, m.material_name FROM material_issues mi 
-                      LEFT JOIN raw_materials m ON mi.material_id = m.id 
-                      ORDER BY mi.date_time DESC LIMIT 50");
+$movements = getRows("SELECT mii.*, m.material_name, mi.issue_no, mi.issue_date, mi.notes, mi.production_order_id FROM material_issue_items mii 
+                      LEFT JOIN raw_materials m ON mii.material_id = m.id 
+                      LEFT JOIN material_issues mi ON mii.issue_id = mi.id
+                      WHERE DATE(mii.date_time) BETWEEN ? AND ?
+                      ORDER BY mii.date_time DESC LIMIT 50",
+                      'ss', [$fromDate, $toDate]);
 ?>
 
 <div class="row mb-3">
@@ -69,8 +74,35 @@ $movements = getRows("SELECT mi.*, m.material_name FROM material_issues mi
         <div class="card bg-warning text-white">
             <div class="card-body text-center">
                 <h5>Low Stock Items</h5>
-                <h3><?php echo $lowStockRm + $lowStockFg; ?></h3>
+                <h3><?php echo $lowStockFg; ?></h3>
                 <small>Needs Reorder</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-filter me-2"></i>Filter</span>
+            </div>
+            <div class="card-body">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">From Date</label>
+                        <input type="date" class="form-control" name="from_date" value="<?php echo $fromDate; ?>">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">To Date</label>
+                        <input type="date" class="form-control" name="to_date" value="<?php echo $toDate; ?>">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search me-2"></i>Generate Report
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -92,7 +124,6 @@ $movements = getRows("SELECT mi.*, m.material_name FROM material_issues mi
                                 <th>Material</th>
                                 <th>Unit</th>
                                 <th>Stock</th>
-                                <th>Min Stock</th>
                                 <th>Price (PKR)</th>
                                 <th>Value (PKR)</th>
                                 <th>Status</th>
@@ -105,14 +136,11 @@ $movements = getRows("SELECT mi.*, m.material_name FROM material_issues mi
                                 <td><?php echo htmlspecialchars($m['material_name']); ?></td>
                                 <td><?php echo htmlspecialchars($m['unit']); ?></td>
                                 <td><?php echo number_format($m['current_stock'], 2); ?></td>
-                                <td><?php echo number_format($m['minimum_stock'], 2); ?></td>
                                 <td class="text-end"><?php echo formatCurrency($m['purchase_price_pkr']); ?></td>
                                 <td class="text-end"><?php echo formatCurrency($m['current_stock'] * $m['purchase_price_pkr']); ?></td>
                                 <td>
                                     <?php if ($m['current_stock'] <= 0): ?>
                                         <span class="badge bg-danger">Out of Stock</span>
-                                    <?php elseif ($m['current_stock'] <= $m['minimum_stock']): ?>
-                                        <span class="badge bg-warning">Low Stock</span>
                                     <?php else: ?>
                                         <span class="badge bg-success">In Stock</span>
                                     <?php endif; ?>
@@ -193,8 +221,8 @@ $movements = getRows("SELECT mi.*, m.material_name FROM material_issues mi
                                 <th>Date</th>
                                 <th>Material</th>
                                 <th>Quantity</th>
-                                <th>Production</th>
-                                <th>Remarks</th>
+                                <th>Issue No</th>
+                                <th>Notes</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -203,8 +231,8 @@ $movements = getRows("SELECT mi.*, m.material_name FROM material_issues mi
                                 <td><?php echo date('d-m-Y H:i', strtotime($mv['date_time'])); ?></td>
                                 <td><?php echo htmlspecialchars($mv['material_name']); ?></td>
                                 <td class="text-end"><?php echo number_format($mv['quantity'], 2); ?></td>
-                                <td><?php echo htmlspecialchars($mv['production_order'] ?? '-'); ?></td>
-                                <td><?php echo htmlspecialchars($mv['remarks'] ?? '-'); ?></td>
+                                <td><?php echo htmlspecialchars($mv['issue_no'] ?? '-'); ?></td>
+                                <td><?php echo htmlspecialchars($mv['notes'] ?? '-'); ?></td>
                             </tr>
                             <?php endforeach; ?>
                         </tbody>

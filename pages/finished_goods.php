@@ -105,6 +105,9 @@ include '../includes/sidebar.php';
                                             </span>
                                         </td>
                                         <td>
+                                            <a href="add_finished_goods.php?edit=<?php echo $product['id']; ?>" class="btn btn-sm btn-warning" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
                                             <a href="?delete=<?php echo $product['id']; ?>" class="btn btn-sm btn-danger delete-confirm">
                                                 <i class="fas fa-trash"></i>
                                             </a>

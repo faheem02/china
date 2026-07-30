@@ -81,7 +81,24 @@ $payments = getRows($sql, 'i', [$supplierId]);
 // Merge transactions
 $transactions = array_merge($purchases, $payments);
 
-// Sort by date
+// Sort ASC for running balance calculation
+usort($transactions, function($a, $b) {
+    return strtotime($a['transaction_date']) - strtotime($b['transaction_date']);
+});
+
+// Calculate running balance starting from opening_balance
+$runningBalanceCNY = $supplier['opening_balance'];
+foreach ($transactions as &$t) {
+    if ($t['transaction_type'] === 'Purchase') {
+        $runningBalanceCNY += $t['amount_cny'] - $t['paid_cny'];
+    } else {
+        $runningBalanceCNY -= $t['amount_cny'];
+    }
+    $t['running_balance_cny'] = $runningBalanceCNY;
+}
+unset($t);
+
+// Sort back DESC for display
 usort($transactions, function($a, $b) {
     return strtotime($b['transaction_date']) - strtotime($a['transaction_date']);
 });
@@ -154,10 +171,6 @@ include '../includes/sidebar.php';
                             <tr>
                                 <th>Company Name</th>
                                 <td><?php echo htmlspecialchars($supplier['company_name']); ?></td>
-                            </tr>
-                            <tr>
-                                <th>Contact Person</th>
-                                <td><?php echo htmlspecialchars($supplier['contact_person']); ?></td>
                             </tr>
                             <tr>
                                 <th>Phone</th>
@@ -262,9 +275,20 @@ include '../includes/sidebar.php';
                         </thead>
                         <tbody>
                             <?php if (count($transactions) > 0): ?>
+                                <tr style="background:#e8f0fe;">
+                                    <td>-</td>
+                                    <td><strong><?php echo htmlspecialchars($supplier['supplier_name']); ?></strong></td>
+                                    <td><span class="badge bg-secondary">Opening Balance</span></td>
+                                    <td>-</td>
+                                    <td class="fw-bold"><?php echo formatCurrency($supplier['opening_balance']); ?></td>
+                                    <td class="fw-bold">PKR <?php echo formatCurrency($supplier['opening_balance'] * $exchangeRate); ?></td>
+                                    <td>-</td>
+                                    <td class="fw-bold"><?php echo formatCurrency($supplier['opening_balance']); ?></td>
+                                    <td><span class="badge bg-info">Active</span></td>
+                                </tr>
                                 <?php foreach (array_slice($transactions, 0, 10) as $transaction): ?>
                                     <tr>
-                                        <td><?php echo date('d-m-Y', strtotime($transaction['transaction_date'])); ?></td>
+                                        <td><?php echo formatDate($transaction['transaction_date']); ?></td>
                                         <td><?php echo htmlspecialchars($transaction['reference_no']); ?></td>
                                         <td>
                                             <span class="badge bg-<?php echo $transaction['transaction_type'] == 'Purchase' ? 'primary' : 'success'; ?>">
@@ -275,7 +299,7 @@ include '../includes/sidebar.php';
                                         <td><?php echo formatCurrency($transaction['amount_cny']); ?></td>
                                         <td><?php echo formatCurrency($transaction['amount_pkr']); ?></td>
                                         <td><?php echo formatCurrency($transaction['paid_cny']); ?></td>
-                                        <td><?php echo formatCurrency($transaction['balance_cny']); ?></td>
+                                        <td><?php echo formatCurrency($transaction['running_balance_cny']); ?></td>
                                         <td>
                                             <span class="badge badge-status badge-<?php echo strtolower($transaction['payment_status']); ?>">
                                                 <?php echo ucfirst($transaction['payment_status']); ?>

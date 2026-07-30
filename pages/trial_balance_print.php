@@ -16,7 +16,7 @@ $totalCashOut = tbVal("SELECT COALESCE(SUM(amount),0) AS total FROM supplier_pay
     + tbVal("SELECT COALESCE(SUM(amount),0) AS total FROM employee_payments")
     + tbVal("SELECT COALESCE(SUM(amount),0) AS total FROM party_transactions WHERE type='paid' AND payment_method='cash'");
 $netCash = $totalCash - $totalCashOut;
-$bankBalance = tbVal("SELECT COALESCE(SUM(current_balance),0) AS total FROM banks");
+$bankBalance = tbVal("SELECT COALESCE(balance,0) AS total FROM accounts WHERE account_type = 'Bank' ORDER BY id DESC LIMIT 1");
 $rmStock = tbVal("SELECT COALESCE(SUM(current_stock * purchase_price_pkr),0) AS total FROM raw_materials");
 $fgStock = tbVal("SELECT COALESCE(SUM(current_stock * cost_price),0) AS total FROM finished_goods");
 $partyReceivable = tbVal("SELECT COALESCE(SUM(current_balance),0) AS total FROM parties WHERE current_balance > 0");
@@ -89,17 +89,12 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
 </div>
 <div class="ledger-wrapper">
 <div class="ledger-a4" id="ledgerContent">
-    <div class="inv-header">
-        <h3>TRIAL BALANCE</h3>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <?php if ($company['address'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;"><?php echo htmlspecialchars($company['address']); ?></p><?php endif; ?>
-        <?php if ($company['phone'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;">Ph: <?php echo htmlspecialchars($company['phone']); ?></p><?php endif; ?>
-    </div>
+    <?php include '../includes/print_branding.php'; ?>
     <div class="inv-meta">
-        <div><strong>As of:</strong> <?php echo date('d-m-Y', strtotime($asOfDate)); ?></div>
+        <div><strong>As of:</strong> <?php echo formatDate($asOfDate); ?></div>
         <div style="text-align:right"><strong>Printed:</strong> <?php echo date('d-m-Y h:i A'); ?><br><strong>User:</strong> <?php echo isset($_SESSION['full_name']) ? htmlspecialchars($_SESSION['full_name']) : 'Admin'; ?></div>
     </div>
-    <div class="inv-title">TRIAL BALANCE AS OF <?php echo date('d-m-Y', strtotime($asOfDate)); ?></div>
+    <div class="inv-title">TRIAL BALANCE AS OF <?php echo formatDate($asOfDate); ?></div>
     <div class="summary-box">
         <div class="summary-item primary"><div class="label">Total Assets</div><div class="amount"><?php echo formatCurrency($totalAssets); ?></div></div>
         <div class="summary-item danger"><div class="label">Total Liabilities</div><div class="amount"><?php echo formatCurrency($totalLiabilities); ?></div></div>
@@ -142,7 +137,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
             </div>
         </div>
     </div>
-    <div class="inv-footer"><p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p></div>
+    <div class="inv-footer"><p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo CLIENT_NAME; ?></p></div>
 </div>
 </div>
 <script>

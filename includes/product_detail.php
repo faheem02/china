@@ -285,7 +285,7 @@ include '../includes/sidebar.php';
                             <?php if (count($salesHistory) > 0): ?>
                                 <?php foreach ($salesHistory as $sale): ?>
                                     <tr>
-                                        <td><?php echo date('d-m-Y', strtotime($sale['sale_date'])); ?></td>
+                                        <td><?php echo formatDate($sale['sale_date']); ?></td>
                                         <td><?php echo htmlspecialchars($sale['customer_name']); ?></td>
                                         <td><?php echo number_format($sale['quantity'], 2); ?></td>
                                         <td>PKR <?php echo formatCurrency($sale['total']); ?></td>
@@ -326,7 +326,7 @@ include '../includes/sidebar.php';
                             <?php if (count($productionHistory) > 0): ?>
                                 <?php foreach ($productionHistory as $production): ?>
                                     <tr>
-                                        <td><?php echo date('d-m-Y', strtotime($production['production_date'])); ?></td>
+                                        <td><?php echo formatDate($production['production_date']); ?></td>
                                         <td><?php echo htmlspecialchars($production['production_no']); ?></td>
                                         <td><?php echo number_format($production['quantity'], 2); ?></td>
                                         <td>

@@ -53,7 +53,7 @@ $expenseHeads = getRows("SELECT DISTINCT category_name FROM expense_categories W
     <div class="card-header"><i class="fas fa-list me-2"></i>All Expenses</div>
     <div class="card-body" style="max-height:400px;overflow-y:auto;"><table class="table table-sm table-striped"><thead><tr><th>Date</th><th>Head</th><th>Amount</th><th>Status</th></tr></thead><tbody>
     <?php foreach($expenses as $ex): ?>
-    <tr><td><?php echo date('d-m-Y', strtotime($ex['expense_date']));?></td><td><?php echo htmlspecialchars($ex['category']);?></td><td class="text-end"><?php echo formatCurrency($ex['amount']);?></td><td><span class="badge bg-<?php echo $ex['payment_status']==='paid'?'success':($ex['payment_status']==='partial'?'warning':'danger');?>"><?php echo ucfirst($ex['payment_status']);?></span></td></tr>
+    <tr><td><?php echo formatDate($ex['expense_date']);?></td><td><?php echo htmlspecialchars($ex['category']);?></td><td class="text-end"><?php echo formatCurrency($ex['amount']);?></td><td><span class="badge bg-<?php echo $ex['payment_status']==='paid'?'success':($ex['payment_status']==='partial'?'warning':'danger');?>"><?php echo ucfirst($ex['payment_status']);?></span></td></tr>
     <?php endforeach; ?>
     </tbody></table></div>
 </div></div></div>

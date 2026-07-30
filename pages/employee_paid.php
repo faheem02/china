@@ -184,7 +184,7 @@ include '../includes/sidebar.php';
                                         <strong><?php echo htmlspecialchars($p['employee_name']); ?></strong>
                                         <br><small class="text-muted"><?php echo htmlspecialchars($p['employee_code']); ?></small>
                                     </td>
-                                    <td><?php echo date('d-m-Y', strtotime($p['payment_date'])); ?></td>
+                                    <td><?php echo formatDate($p['payment_date']); ?></td>
                                     <td><?php echo htmlspecialchars($p['month_year']); ?></td>
                                     <td><span class="badge bg-secondary"><?php echo ucfirst($p['payment_type']); ?></span></td>
                                     <td><strong><?php echo formatCurrency($p['amount']); ?></strong></td>

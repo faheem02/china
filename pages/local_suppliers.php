@@ -41,7 +41,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
     $supplier_name = trim($_POST['supplier_name']);
     $company_name = trim($_POST['company_name']);
-    $contact_person = trim($_POST['contact_person']);
     $phone = trim($_POST['phone']);
     $email = trim($_POST['email']);
     $address = trim($_POST['address']);
@@ -65,7 +64,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sql = "UPDATE local_suppliers SET 
                     supplier_name = ?, 
                     company_name = ?, 
-                    contact_person = ?, 
                     phone = ?, 
                     email = ?, 
                     address = ?, 
@@ -82,7 +80,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $params = [
                 $supplier_name, 
                 $company_name, 
-                $contact_person, 
                 $phone, 
                 $email, 
                 $address, 
@@ -97,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $id
             ];
             
-            $result = modifyData($sql, 'sssssssssssdssi', $params);
+            $result = modifyData($sql, 'sssssssssdsssi', $params);
             
             if ($result !== false) {
                 setFlash('Supplier updated successfully!', 'success');
@@ -110,15 +107,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             // Insert
             $sql = "INSERT INTO local_suppliers (
-                    supplier_name, company_name, contact_person, phone, email, 
+                    supplier_name, company_name, phone, email, 
                     address, city, country, cnic, ntn, opening_balance, opening_balance_type,
                     status, date_time
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             
             $params = [
                 $supplier_name, 
                 $company_name, 
-                $contact_person, 
                 $phone, 
                 $email, 
                 $address, 
@@ -132,7 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $currentDateTime
             ];
             
-            $result = insertData($sql, 'ssssssssssdssi', $params);
+            $result = insertData($sql, 'ssssssssdsss', $params);
             
             if ($result !== false) {
                 setFlash('Supplier added successfully!', 'success');
@@ -186,6 +182,12 @@ include '../includes/sidebar.php';
         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#supplierModal">
             <i class="fas fa-plus me-2"></i>Add New Supplier
         </button>
+        <a href="supplier_payments.php" class="btn btn-success">
+            <i class="fas fa-money-bill-wave me-2"></i>Make Payment
+        </a>
+        <a href="suppliers_summary.php" class="btn btn-info text-white">
+            <i class="fas fa-chart-bar me-2"></i>Suppliers Summary
+        </a>
     </div>
 </div>
 
@@ -201,10 +203,9 @@ include '../includes/sidebar.php';
                     <table class="table table-striped table-hover" id="supplierTable">
                         <thead>
                             <tr>
-                                <th>ID</th>
+                                <th>#</th>
                                 <th>Supplier Name</th>
                                 <th>Company</th>
-                                <th>Contact</th>
                                 <th>Phone</th>
                                 <th>CNIC</th>
                                 <th>NTN</th>
@@ -215,12 +216,15 @@ include '../includes/sidebar.php';
                         </thead>
                         <tbody>
                             <?php if (count($suppliers) > 0): ?>
-                                <?php foreach ($suppliers as $supplier): ?>
+                                <?php $i = 1; foreach ($suppliers as $supplier): ?>
                                     <tr>
-                                        <td><?php echo $supplier['id']; ?></td>
-                                        <td><strong><?php echo htmlspecialchars($supplier['supplier_name']); ?></strong></td>
+                                        <td><?php echo $i++; ?></td>
+                                        <td>
+                                            <a href="supplier_detail.php?id=<?php echo $supplier['id']; ?>">
+                                                <strong><?php echo htmlspecialchars($supplier['supplier_name']); ?></strong>
+                                            </a>
+                                        </td>
                                         <td><?php echo htmlspecialchars($supplier['company_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($supplier['contact_person']); ?></td>
                                         <td><?php echo htmlspecialchars($supplier['phone']); ?></td>
                                         <td><?php echo htmlspecialchars($supplier['cnic']); ?></td>
                                         <td><?php echo htmlspecialchars($supplier['ntn']); ?></td>
@@ -236,11 +240,17 @@ include '../includes/sidebar.php';
                                             </span>
                                         </td>
                                         <td>
-                                            <div class="d-inline-flex gap-1">
-                                                <a href="?edit=<?php echo $supplier['id']; ?>" class="btn btn-sm btn-warning" title="Edit">
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="supplier_detail.php?id=<?php echo $supplier['id']; ?>" class="btn btn-info" title="View Detail">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                <a href="supplier_ledger.php?id=<?php echo $supplier['id']; ?>" class="btn btn-primary" title="View Ledger">
+                                                    <i class="fas fa-book"></i>
+                                                </a>
+                                                <a href="?edit=<?php echo $supplier['id']; ?>" class="btn btn-warning" title="Edit">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
-                                                <a href="?delete=<?php echo $supplier['id']; ?>" class="btn btn-sm btn-danger delete-confirm">
+                                                <a href="?delete=<?php echo $supplier['id']; ?>" class="btn btn-danger delete-confirm" title="Delete">
                                                     <i class="fas fa-trash"></i>
                                                 </a>
                                             </div>
@@ -249,7 +259,7 @@ include '../includes/sidebar.php';
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="10" class="text-center text-muted py-3">
+                                    <td colspan="9" class="text-center text-muted py-3">
                                         <i class="fas fa-info-circle me-2"></i>No local suppliers found
                                     </td>
                                 </tr>
@@ -291,12 +301,6 @@ include '../includes/sidebar.php';
                             <label for="company_name" class="form-label">Company Name</label>
                             <input type="text" class="form-control" id="company_name" name="company_name" 
                                    value="<?php echo $editSupplier ? htmlspecialchars($editSupplier['company_name']) : ''; ?>">
-                        </div>
-                        
-                        <div class="col-md-6 mb-3">
-                            <label for="contact_person" class="form-label">Contact Person</label>
-                            <input type="text" class="form-control" id="contact_person" name="contact_person" 
-                                   value="<?php echo $editSupplier ? htmlspecialchars($editSupplier['contact_person']) : ''; ?>">
                         </div>
                         
                         <div class="col-md-6 mb-3">

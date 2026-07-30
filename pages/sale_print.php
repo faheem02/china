@@ -122,16 +122,11 @@ body { background: #f0f2f5; }
 <div class="bill-wrapper">
 <!-- ═══ A4 Invoice ═══ -->
 <div class="invoice-a4" id="invoiceA4">
-    <div class="inv-header">
-        <h3>SALE INVOICE</h3>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <?php if (isset($company['address']) && !empty($company['address'])): ?><p style="margin:2px 0 0;font-size:12px;"><?php echo htmlspecialchars($company['address']); ?></p><?php endif; ?>
-        <?php if (isset($company['phone']) && !empty($company['phone'])): ?><p style="margin:2px 0 0;font-size:12px;">Ph: <?php echo htmlspecialchars($company['phone']); ?></p><?php endif; ?>
-    </div>
+    <?php include '../includes/print_branding.php'; ?>
     <div class="inv-meta">
         <div>
             <strong>Invoice #:</strong> <?php echo isset($sale['sale_no']) ? htmlspecialchars($sale['sale_no']) : ''; ?><br>
-            <strong>Date:</strong> <?php echo isset($sale['sale_date']) ? date('d-m-Y', strtotime($sale['sale_date'])) : ''; ?><br>
+            <strong>Date:</strong> <?php echo isset($sale['sale_date']) ? formatDate($sale['sale_date']) : ''; ?><br>
             <strong>Payment:</strong> <?php echo isset($sale['payment_method']) ? ucfirst($sale['payment_method']) : 'N/A'; ?>
         </div>
         <div style="text-align:right">
@@ -181,12 +176,11 @@ body { background: #f0f2f5; }
 <!-- ═══ Thermal Invoice ═══ -->
 <div class="invoice-thermal" id="invoiceThermal">
     <div class="th-header">
-        <h5>SALE INVOICE</h5>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <p><?php echo isset($sale['sale_no']) ? htmlspecialchars($sale['sale_no']) : ''; ?></p>
+        <h5><?php echo CLIENT_NAME; ?></h5>
+        <p><?php echo CLIENT_ADDRESS; ?> | Ph: <?php echo CLIENT_PHONE; ?></p>
     </div>
     <table>
-        <tr><td><strong>Date:</strong></td><td><?php echo isset($sale['sale_date']) ? date('d-m-Y', strtotime($sale['sale_date'])) : ''; ?></td></tr>
+        <tr><td><strong>Date:</strong></td><td><?php echo isset($sale['sale_date']) ? formatDate($sale['sale_date']) : ''; ?></td></tr>
         <tr><td><strong>Customer:</strong></td><td><?php echo htmlspecialchars($customerName); ?></td></tr>
         <?php if (!empty($customerPhone)): ?>
         <tr><td><strong>Phone:</strong></td><td><?php echo htmlspecialchars($customerPhone); ?></td></tr>

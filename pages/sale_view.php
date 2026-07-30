@@ -51,7 +51,7 @@ include '../includes/sidebar.php';
                         </div>
                         <div class="col-md-3 mb-2">
                             <div class="label">Date</div>
-                            <div class="value"><?php echo date('d-m-Y', strtotime($sale['sale_date'])); ?></div>
+                            <div class="value"><?php echo formatDate($sale['sale_date']); ?></div>
                         </div>
                         <div class="col-md-3 mb-2">
                             <div class="label">Customer</div>

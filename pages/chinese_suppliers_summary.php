@@ -17,7 +17,25 @@ $messageType = '';
 // Get date filters
 $asOnDate = isset($_GET['as_on_date']) ? $_GET['as_on_date'] : date('Y-m-d');
 
+$dbError = '';
+
+// Default values in case query fails
+$suppliers = [];
+$exchangeRate = 40.5000;
+$totalSuppliers = 0;
+$totalBalanceCNY = 0;
+$totalBalancePKR = 0;
+$totalPurchasesCNY = 0;
+$totalPurchasesPKR = 0;
+$totalPaidCNY = 0;
+$totalPaidPKR = 0;
+$totalOutstandingCNY = 0;
+$totalOutstandingPKR = 0;
+$totalPaymentsCNY = 0;
+$totalPaymentsPKR = 0;
+
 // Get all Chinese suppliers with their balances and purchase history
+try {
 $suppliers = getRows("SELECT s.*, c.currency_code, c.currency_name, c.symbol, c.exchange_rate,
     (SELECT COUNT(*) FROM import_purchases WHERE supplier_id = s.id) as total_purchases,
     (SELECT COALESCE(SUM(total_cny), 0) FROM import_purchases WHERE supplier_id = s.id) as total_purchase_cny,
@@ -69,13 +87,35 @@ if ($rateRow) {
     $exchangeRate = $rateRow['exchange_rate'];
 }
 
+} catch (\Throwable $e) {
+    $dbError = $e->getMessage();
+}
+
 // Include header
 include '../includes/header.php';
 include '../includes/sidebar.php';
-include '../includes/print_header.php';
+
+try {
+    include '../includes/print_header.php';
+} catch (\Throwable $e) {
+    $dbError = 'print_header: ' . $e->getMessage();
+}
+
+$hasSuppliers = is_array($suppliers) && count($suppliers) > 0;
 ?>
 
-<!-- Page Content -->
+<?php if ($dbError): ?>
+<div class="alert alert-danger m-3" role="alert">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <strong>Database Error:</strong> <?php echo htmlspecialchars($dbError); ?>
+</div>
+<?php endif; ?>
+<?php if (!$hasSuppliers && !$dbError): ?>
+<div class="alert alert-warning m-3" role="alert">
+    <i class="fas fa-info-circle me-2"></i> No suppliers data found (query returned empty).
+</div>
+<?php endif; ?>
+
 <div class="row">
     <div class="col-12">
         <?php if ($message): ?>

@@ -14,34 +14,24 @@ if ($flash) {
 
 $fromDate = isset($_GET['from_date']) ? $_GET['from_date'] : date('Y-m-01');
 $toDate = isset($_GET['to_date']) ? $_GET['to_date'] : date('Y-m-d');
-$bankFilter = isset($_GET['bank_id']) ? (int)$_GET['bank_id'] : 0;
-
-$banks = getRows("SELECT id, bank_name, account_number, opening_balance FROM banks WHERE status = 'active' ORDER BY bank_name");
 
 $openingBalance = 0;
-if ($bankFilter > 0) {
-    $selectedBank = getRow("SELECT id, bank_name, account_number, opening_balance FROM banks WHERE id = ?", 'i', [$bankFilter]);
-    if ($selectedBank) {
-        $openingBalance = (float)$selectedBank['opening_balance'];
-    }
-} else {
-    foreach ($banks as $b) {
-        $openingBalance += (float)$b['opening_balance'];
-    }
-}
 
-$transactions = [];
 $totalBankIn = 0;
 $totalBankOut = 0;
 
 $baseSql = "SELECT payment_date as txn_date, CONCAT('Receipt - ', receipt_no) as description, receipt_no as reference, amount as bank_in, 0 as bank_out, 'in' as direction
-    FROM customer_receipts WHERE payment_method IN ('bank_transfer', 'cheque')";
+    FROM customer_receipts WHERE payment_method IN ('bank', 'bank_transfer', 'cheque')";
 
 $baseSql .= " UNION ALL SELECT payment_date, CONCAT('Payment - ', payment_no), payment_no, 0, amount, 'out'
-    FROM supplier_payments WHERE payment_type IN ('bank_transfer', 'cheque')";
+    FROM supplier_payments WHERE payment_type IN ('bank', 'bank_transfer', 'cheque')";
 
 $baseSql .= " UNION ALL SELECT expense_date, CONCAT('Expense - ', category, ' - ', expense_no), expense_no, 0, amount, 'out'
-    FROM expenses WHERE status = 'paid' AND (paid_by LIKE '%bank%' OR paid_by LIKE '%cheque%')";
+    FROM expenses WHERE status = 'paid' AND paid_by IN ('bank', 'bank_transfer', 'cheque')";
+
+$baseSql .= " UNION ALL SELECT cp.payment_date, CONCAT('Chinese Payment - ', cp.payment_no), cp.payment_no, 0, cp.amount_pkr, 'out'
+    FROM chinese_supplier_payments cp
+    WHERE cp.payment_type IN ('bank', 'bank_transfer', 'cheque', 'online', 'telegraphic_transfer') AND cp.status = 'completed'";
 
 $baseSql .= " ORDER BY txn_date ASC";
 
@@ -139,7 +129,7 @@ include '../includes/print_header.php';
             <i class="fas fa-filter me-2"></i>Filter Transactions
         </h5>
         <div class="d-flex gap-1 no-print">
-            <a href="bankbook_print.php?from_date=<?php echo urlencode($fromDate); ?>&to_date=<?php echo urlencode($toDate); ?>&bank_id=<?php echo $bankFilter; ?>" target="_blank" class="btn btn-danger btn-sm"><i class="fas fa-print me-1"></i>Print</a>
+            <a href="bankbook_print.php?from_date=<?php echo urlencode($fromDate); ?>&to_date=<?php echo urlencode($toDate); ?>" target="_blank" class="btn btn-danger btn-sm"><i class="fas fa-print me-1"></i>Print</a>
             <a href="../index.php" class="btn btn-light btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
         </div>
     </div>
@@ -154,18 +144,7 @@ include '../includes/print_header.php';
                     <label class="form-label">To Date</label>
                     <input type="date" class="form-control" name="to_date" value="<?php echo htmlspecialchars($toDate); ?>">
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label">Bank</label>
-                    <select class="form-select" name="bank_id">
-                        <option value="0">All Banks</option>
-                        <?php foreach ($banks as $b): ?>
-                            <option value="<?php echo $b['id']; ?>" <?php echo $bankFilter == $b['id'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($b['bank_name'] . ' (' . $b['account_number'] . ')'); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-3 d-flex align-items-end">
+                <div class="col-md-6 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary me-2">
                         <i class="fas fa-search me-1"></i>Filter
                     </button>
@@ -182,12 +161,7 @@ include '../includes/print_header.php';
     <div class="card-header" style="background-color: #1a2332; color: #fff;">
         <h5 class="mb-0">
             <i class="fas fa-book me-2"></i>Bank Book
-            <?php if ($bankFilter > 0 && isset($selectedBank)): ?>
-                <span class="badge bg-info ms-2"><?php echo htmlspecialchars($selectedBank['bank_name']); ?></span>
-            <?php else: ?>
-                <span class="badge bg-info ms-2">All Banks</span>
-            <?php endif; ?>
-            <small class="ms-2">(<?php echo date('d-m-Y', strtotime($fromDate)); ?> to <?php echo date('d-m-Y', strtotime($toDate)); ?>)</small>
+            <small class="ms-2">(<?php echo formatDate($fromDate); ?> to <?php echo formatDate($toDate); ?>)</small>
         </h5>
     </div>
     <div class="card-body">
@@ -207,7 +181,7 @@ include '../includes/print_header.php';
                 <tbody>
                     <tr class="table-secondary">
                         <td></td>
-                        <td><?php echo date('d-m-Y'); ?></td>
+                        <td><?php echo formatDate($fromDate); ?></td>
                         <td><strong>Opening Balance</strong></td>
                         <td></td>
                         <td></td>
@@ -224,7 +198,7 @@ include '../includes/print_header.php';
                         ?>
                         <tr>
                             <td><?php echo $counter++; ?></td>
-                            <td><?php echo date('d-m-Y', strtotime($txn['txn_date'])); ?></td>
+                            <td><?php echo formatDate($txn['txn_date']); ?></td>
                             <td><?php echo htmlspecialchars($txn['description']); ?></td>
                             <td><strong><?php echo htmlspecialchars($txn['reference']); ?></strong></td>
                             <td class="text-end">

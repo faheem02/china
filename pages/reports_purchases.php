@@ -127,7 +127,7 @@ $importTotalCny = array_sum(array_column($importPurchases, 'grand_total_cny'));
                         <tbody>
                             <?php foreach ($localPurchases as $lp): ?>
                             <tr>
-                                <td><?php echo date('d-m-Y', strtotime($lp['date_time'])); ?></td>
+                                <td><?php echo formatDate($lp['date_time']); ?></td>
                                 <td><?php echo htmlspecialchars($lp['purchase_no']); ?></td>
                                 <td><?php echo htmlspecialchars($lp['supplier_name']); ?></td>
                                 <td class="text-center"><?php echo $lp['total_items']; ?></td>
@@ -184,7 +184,7 @@ $importTotalCny = array_sum(array_column($importPurchases, 'grand_total_cny'));
                         <tbody>
                             <?php foreach ($importPurchases as $ip): ?>
                             <tr>
-                                <td><?php echo date('d-m-Y', strtotime($ip['date_time'])); ?></td>
+                                <td><?php echo formatDate($ip['date_time']); ?></td>
                                 <td><?php echo htmlspecialchars($ip['purchase_no']); ?></td>
                                 <td><?php echo htmlspecialchars($ip['supplier_name']); ?></td>
                                 <td class="text-center"><?php echo $ip['total_items']; ?></td>

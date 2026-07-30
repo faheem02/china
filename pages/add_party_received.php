@@ -100,14 +100,13 @@ include '../includes/sidebar.php';
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Reference No</label>
-                            <input type="text" class="form-control" name="reference_no" placeholder="Receipt #, Cheque #">
+                            <input type="text" class="form-control" name="reference_no" placeholder="Reference #">
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Payment Method</label>
                             <select class="form-select" name="payment_method">
                                 <option value="cash">Cash</option>
-                                <option value="bank_transfer">Bank Transfer</option>
-                                <option value="cheque">Cheque</option>
+                                <option value="bank">Bank</option>
                             </select>
                         </div>
                     </div>

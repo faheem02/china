@@ -184,7 +184,7 @@ include '../includes/sidebar.php';
                                 <tr>
                                     <td><?php echo $i++; ?></td>
                                     <td><strong><?php echo htmlspecialchars($exp['expense_no']); ?></strong></td>
-                                    <td><?php echo date('d-m-Y', strtotime($exp['expense_date'])); ?></td>
+                                    <td><?php echo formatDate($exp['expense_date']); ?></td>
                                     <td><span class="badge bg-primary"><?php echo htmlspecialchars($exp['category']); ?></span></td>
                                     <td><?php echo htmlspecialchars($exp['description'] ?: '-'); ?></td>
                                     <td><strong><?php echo formatCurrency($exp['amount']); ?></strong></td>

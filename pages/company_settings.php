@@ -75,7 +75,7 @@ include '../includes/sidebar.php';
                         <label for="company_tagline" class="form-label">Tagline / Subtitle</label>
                         <input type="text" class="form-control" id="company_tagline" name="company_tagline"
                                value="<?php echo htmlspecialchars($company['company_tagline'] ?? ''); ?>"
-                               placeholder="e.g. Manufacturing ERP System">
+                               placeholder="e.g. <?php echo CLIENT_NAME; ?>">
                     </div>
                     <div class="mb-3">
                         <label for="address" class="form-label">Address</label>

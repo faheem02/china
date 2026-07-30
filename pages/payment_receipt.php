@@ -117,10 +117,8 @@ $company = getRow("SELECT * FROM company_settings LIMIT 1");
         </div>
         
         <div class="receipt-header">
-            <h2><i class="fas fa-receipt me-2"></i>Payment Receipt</h2>
-            <small><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></small>
-            <?php if ($company['address'] ?? null): ?><br><small><?php echo htmlspecialchars($company['address']); ?></small><?php endif; ?>
-            <?php if ($company['phone'] ?? null): ?><br><small>Ph: <?php echo htmlspecialchars($company['phone']); ?></small><?php endif; ?>
+            <?php include '../includes/print_branding.php'; ?>
+            <h2 style="margin-top:15px;"><i class="fas fa-receipt me-2"></i>Payment Receipt</h2>
         </div>
         
         <div class="receipt-details">
@@ -131,7 +129,7 @@ $company = getRow("SELECT * FROM company_settings LIMIT 1");
                 </tr>
                 <tr>
                     <td>Payment Date</td>
-                    <td><?php echo date('d-m-Y', strtotime($payment['payment_date'])); ?></td>
+                    <td><?php echo formatDate($payment['payment_date']); ?></td>
                 </tr>
                 <tr>
                     <td>Supplier Name</td>

@@ -76,7 +76,6 @@ include '../includes/sidebar.php';
                                 <th>Category</th>
                                 <th>Unit</th>
                                 <th>Stock</th>
-                                <th>Min Stock</th>
                                 <th>Price (PKR)</th>
                                 <th>Price (CNY)</th>
                                 <th>Supplier</th>
@@ -93,7 +92,6 @@ include '../includes/sidebar.php';
                                         <td><?php echo htmlspecialchars($material['category']); ?></td>
                                         <td><?php echo htmlspecialchars($material['unit']); ?></td>
                                         <td><?php echo number_format($material['current_stock'], 2); ?></td>
-                                        <td><?php echo number_format($material['minimum_stock'], 2); ?></td>
                                         <td><?php echo formatCurrency($material['purchase_price_pkr']); ?></td>
                                         <td>
                                             <?php if ($material['supplier_type'] == 'chinese'): ?>
@@ -111,6 +109,9 @@ include '../includes/sidebar.php';
                                             <?php endif; ?>
                                         </td>
                                         <td>
+                                            <a href="add_raw_materials.php?edit=<?php echo $material['id']; ?>" class="btn btn-sm btn-warning" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
                                             <a href="?delete=<?php echo $material['id']; ?>" class="btn btn-sm btn-danger delete-confirm">
                                                 <i class="fas fa-trash"></i>
                                             </a>
@@ -119,7 +120,7 @@ include '../includes/sidebar.php';
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="11" class="text-center text-muted py-3">
+                                    <td colspan="10" class="text-center text-muted py-3">
                                         <i class="fas fa-info-circle me-2"></i>No raw materials found
                                     </td>
                                 </tr>

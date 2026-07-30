@@ -93,7 +93,7 @@ include '../includes/sidebar.php';
                                         <td><strong><?php echo htmlspecialchars($b['sale_no']); ?></strong></td>
                                         <td><?php echo htmlspecialchars($b['customer_display'] ?: 'N/A'); ?></td>
                                         <td><span class="badge bg-<?php echo $b['customer_type'] === 'credit' ? 'primary' : 'secondary'; ?>"><?php echo ucfirst($b['customer_type']); ?></span></td>
-                                        <td><?php echo date('d-m-Y', strtotime($b['sale_date'])); ?></td>
+                                        <td><?php echo formatDate($b['sale_date']); ?></td>
                                         <td><?php echo number_format($b['total_amount'], 2); ?></td>
                                         <td><?php echo number_format($b['discount'], 2); ?></td>
                                         <td><strong><?php echo number_format($b['final_amount'], 2); ?></strong></td>

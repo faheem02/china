@@ -96,16 +96,11 @@ body { background: #f0f2f5; }
 <div class="bill-wrapper">
 <!-- A4 Invoice -->
 <div class="invoice-a4" id="invoiceA4">
-    <div class="inv-header">
-        <h3>PURCHASE INVOICE</h3>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <?php if ($company['address'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;"><?php echo htmlspecialchars($company['address']); ?></p><?php endif; ?>
-        <?php if ($company['phone'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;">Ph: <?php echo htmlspecialchars($company['phone']); ?></p><?php endif; ?>
-    </div>
+    <?php include '../includes/print_branding.php'; ?>
     <div class="inv-meta">
         <div>
             <strong>Invoice #:</strong> <?php echo $purchase['purchase_no']; ?><br>
-            <strong>Date:</strong> <?php echo date('d-m-Y', strtotime($purchase['purchase_date'])); ?><br>
+            <strong>Date:</strong> <?php echo formatDate($purchase['purchase_date']); ?><br>
             <strong>Payment:</strong> <?php echo ucfirst($purchase['payment_method'] ?? 'Credit'); ?>
         </div>
         <div style="text-align:right">
@@ -150,12 +145,11 @@ body { background: #f0f2f5; }
 <!-- Thermal Invoice -->
 <div class="invoice-thermal" id="invoiceThermal">
     <div class="th-header">
-        <h5>PURCHASE INVOICE</h5>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <p><?php echo $purchase['purchase_no']; ?></p>
+        <h5><?php echo CLIENT_NAME; ?></h5>
+        <p><?php echo CLIENT_ADDRESS; ?> | Ph: <?php echo CLIENT_PHONE; ?></p>
     </div>
     <table>
-        <tr><td><strong>Date:</strong></td><td><?php echo date('d-m-Y', strtotime($purchase['purchase_date'])); ?></td></tr>
+        <tr><td><strong>Date:</strong></td><td><?php echo formatDate($purchase['purchase_date']); ?></td></tr>
         <tr><td><strong>Supplier:</strong></td><td><?php echo htmlspecialchars($purchase['supplier_name']); ?></td></tr>
         <?php if ($purchase['sup_phone']): ?>
         <tr><td><strong>Phone:</strong></td><td><?php echo htmlspecialchars($purchase['sup_phone']); ?></td></tr>

@@ -58,12 +58,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
 </div>
 <div class="ledger-wrapper">
 <div class="ledger-a4" id="ledgerContent">
-    <div class="inv-header">
-        <h3>GENERAL LEDGER</h3>
-        <p><?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p>
-        <?php if ($company['address'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;"><?php echo htmlspecialchars($company['address']); ?></p><?php endif; ?>
-        <?php if ($company['phone'] ?? null): ?><p style="margin:2px 0 0;font-size:12px;">Ph: <?php echo htmlspecialchars($company['phone']); ?></p><?php endif; ?>
-    </div>
+    <?php include '../includes/print_branding.php'; ?>
     <div class="inv-meta">
         <div><strong>Total Entries:</strong> <?php echo count($entries); ?></div>
         <div style="text-align:right"><strong>Printed:</strong> <?php echo date('d-m-Y h:i A'); ?><br><strong>User:</strong> <?php echo isset($_SESSION['full_name']) ? htmlspecialchars($_SESSION['full_name']) : 'Admin'; ?></div>
@@ -82,7 +77,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
             <?php if (count($entries) > 0): $c = 1; foreach ($entries as $entry): ?>
             <tr>
                 <td><?php echo $c++; ?></td>
-                <td><?php echo date('d-m-Y', strtotime($entry['account_date'])); ?></td>
+                <td><?php echo formatDate($entry['account_date']); ?></td>
                 <td><?php echo htmlspecialchars($entry['account_type']); ?></td>
                 <td><?php if ($entry['reference_type']): ?><strong><?php echo htmlspecialchars($entry['reference_type'] . ' #' . $entry['reference_id']); ?></strong><?php else: ?>-<?php endif; ?></td>
                 <td><?php echo htmlspecialchars($entry['description'] ?: '-'); ?></td>
@@ -98,7 +93,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
             <tr><th colspan="5" style="text-align:right">TOTAL</th><th style="text-align:right;color:#198754;"><?php echo formatCurrency($summary['total_debit']); ?></th><th style="text-align:right;color:#dc3545;"><?php echo formatCurrency($summary['total_credit']); ?></th><th style="text-align:right"><?php echo formatCurrency($currentBalance); ?></th></tr>
         </tfoot>
     </table>
-    <div class="inv-footer"><p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo htmlspecialchars($company['company_name'] ?? 'ERP System'); ?></p></div>
+    <div class="inv-footer"><p>Generated on <?php echo date('d-m-Y h:i A'); ?> | <?php echo CLIENT_NAME; ?></p></div>
 </div>
 </div>
 <script>

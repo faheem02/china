@@ -45,7 +45,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
     $supplier_name = trim($_POST['supplier_name']);
     $company_name = trim($_POST['company_name']);
-    $contact_person = trim($_POST['contact_person']);
     $phone = trim($_POST['phone']);
     $email = trim($_POST['email']);
     $address = trim($_POST['address']);
@@ -69,7 +68,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sql = "UPDATE chinese_suppliers SET 
                     supplier_name = ?, 
                     company_name = ?, 
-                    contact_person = ?, 
                     phone = ?, 
                     email = ?, 
                     address = ?, 
@@ -87,7 +85,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $params = [
                 $supplier_name, 
                 $company_name, 
-                $contact_person, 
                 $phone, 
                 $email, 
                 $address, 
@@ -103,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $id
             ];
             
-            $result = modifyData($sql, 'sssssssssssidsi', $params);
+            $result = modifyData($sql, 'sssssssidssssi', $params);
             
             if ($result !== false) {
                 setFlash('Supplier updated successfully!', 'success');
@@ -116,15 +113,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             // Insert
             $sql = "INSERT INTO chinese_suppliers (
-                    supplier_name, company_name, contact_person, phone, email, 
+                    supplier_name, company_name, phone, email, 
                     address, city, country, cnic, ntn, currency_id, opening_balance, opening_balance_type,
                     status, date_time
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             
             $params = [
                 $supplier_name, 
                 $company_name, 
-                $contact_person, 
                 $phone, 
                 $email, 
                 $address, 
@@ -139,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $currentDateTime
             ];
             
-            $result = insertData($sql, 'ssssssssssidsi', $params);
+            $result = insertData($sql, 'sssssssidssss', $params);
             
             if ($result !== false) {
                 setFlash('Supplier added successfully!', 'success');
@@ -216,10 +212,9 @@ include '../includes/sidebar.php';
                     <table class="table table-striped table-hover" id="supplierTable">
                         <thead>
                             <tr>
-                                <th>ID</th>
+                                <th>#</th>
                                 <th>Supplier Name</th>
                                 <th>Company</th>
-                                <th>Contact Person</th>
                                 <th>Phone</th>
                                 <th>Balance (CNY)</th>
                                 <th>Balance (PKR)</th>
@@ -229,19 +224,18 @@ include '../includes/sidebar.php';
                         </thead>
                         <tbody>
                             <?php if (count($suppliers) > 0): ?>
-                                <?php foreach ($suppliers as $supplier): ?>
+                                <?php $counter = 1; foreach ($suppliers as $supplier): ?>
                                     <?php 
                                     $pkrBalance = $supplier['current_balance'] * ($supplier['exchange_rate'] ?: 40.5000);
                                     ?>
                                     <tr>
-                                        <td><?php echo $supplier['id']; ?></td>
+                                        <td><?php echo $counter++; ?></td>
                                         <td>
                                             <a href="chinese_supplier_detail.php?id=<?php echo $supplier['id']; ?>">
                                                 <strong><?php echo htmlspecialchars($supplier['supplier_name']); ?></strong>
                                             </a>
                                         </td>
                                         <td><?php echo htmlspecialchars($supplier['company_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($supplier['contact_person']); ?></td>
                                         <td><?php echo htmlspecialchars($supplier['phone']); ?></td>
                                         <td><strong>¥ <?php echo formatCurrency($supplier['current_balance']); ?></strong></td>
                                         <td>PKR <?php echo formatCurrency($pkrBalance); ?></td>
@@ -270,7 +264,7 @@ include '../includes/sidebar.php';
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted py-3">
+                                    <td colspan="8" class="text-center text-muted py-3">
                                         <i class="fas fa-info-circle me-2"></i>No Chinese suppliers found
                                     </td>
                                 </tr>
@@ -320,12 +314,6 @@ include '../includes/sidebar.php';
                             <label for="company_name" class="form-label">Company Name</label>
                             <input type="text" class="form-control" id="company_name" name="company_name" 
                                    value="<?php echo $editSupplier ? htmlspecialchars($editSupplier['company_name']) : ''; ?>">
-                        </div>
-                        
-                        <div class="col-md-6 mb-3">
-                            <label for="contact_person" class="form-label">Contact Person</label>
-                            <input type="text" class="form-control" id="contact_person" name="contact_person" 
-                                   value="<?php echo $editSupplier ? htmlspecialchars($editSupplier['contact_person']) : ''; ?>">
                         </div>
                         
                         <div class="col-md-6 mb-3">

@@ -116,7 +116,7 @@ $totalItems = array_sum(array_column($sales, 'total_items'));
                         <tbody>
                             <?php foreach ($sales as $sale): ?>
                             <tr>
-                                <td><?php echo date('d-m-Y', strtotime($sale['date_time'])); ?></td>
+                                <td><?php echo formatDate($sale['date_time']); ?></td>
                                 <td><?php echo htmlspecialchars($sale['invoice_no']); ?></td>
                                 <td><?php echo htmlspecialchars($sale['customer_name']); ?></td>
                                 <td class="text-center"><?php echo $sale['total_items']; ?></td>

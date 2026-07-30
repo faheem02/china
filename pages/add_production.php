@@ -227,11 +227,12 @@ include '../includes/sidebar.php';
                                         </tr>
                                     </thead>
                                     <tbody id="materialBody">
+                                        <?php $rowIdx = 0; ?>
                                         <?php if ($editMaterials): ?>
                                             <?php foreach ($editMaterials as $item): ?>
                                                 <tr>
                                                     <td>
-                                                        <select class="form-select form-select-sm material-select" name="materials[][material_id]" required onchange="onMaterialSelect(this)">
+                                                        <select class="form-select form-select-sm material-select" name="materials[<?php echo $rowIdx; ?>][material_id]" required onchange="onMaterialSelect(this)">
                                                             <option value="">Select Material</option>
                                                             <?php foreach ($rawMaterials as $mat): ?>
                                                                 <option value="<?php echo $mat['id']; ?>"
@@ -245,11 +246,11 @@ include '../includes/sidebar.php';
                                                     </td>
                                                     <td class="text-center stock-display"><?php echo number_format($item['quantity_used'], 2); ?></td>
                                                     <td>
-                                                        <input type="number" step="0.01" class="form-control form-control-sm quantity" name="materials[][quantity]"
+                                                        <input type="number" step="0.01" class="form-control form-control-sm quantity" name="materials[<?php echo $rowIdx; ?>][quantity]"
                                                                value="<?php echo $item['quantity_used']; ?>" required onchange="calculateRowTotal(this)" onkeyup="calculateRowTotal(this)">
                                                     </td>
                                                     <td>
-                                                        <input type="number" step="0.01" class="form-control form-control-sm unit-price" name="materials[][unit_price]"
+                                                        <input type="number" step="0.01" class="form-control form-control-sm unit-price" name="materials[<?php echo $rowIdx; ?>][unit_price]"
                                                                value="<?php echo $item['cost_per_unit']; ?>" required onchange="calculateRowTotal(this)" onkeyup="calculateRowTotal(this)">
                                                     </td>
                                                     <td>
@@ -261,11 +262,12 @@ include '../includes/sidebar.php';
                                                         </button>
                                                     </td>
                                                 </tr>
+                                            <?php $rowIdx++; ?>
                                             <?php endforeach; ?>
                                         <?php else: ?>
                                             <tr>
                                                 <td>
-                                                    <select class="form-select form-select-sm material-select" name="materials[][material_id]" required onchange="onMaterialSelect(this)">
+                                                    <select class="form-select form-select-sm material-select" name="materials[<?php echo $rowIdx; ?>][material_id]" required onchange="onMaterialSelect(this)">
                                                         <option value="">Select Material</option>
                                                         <?php foreach ($rawMaterials as $mat): ?>
                                                             <option value="<?php echo $mat['id']; ?>"
@@ -278,11 +280,11 @@ include '../includes/sidebar.php';
                                                 </td>
                                                 <td class="text-center stock-display">0</td>
                                                 <td>
-                                                    <input type="number" step="0.01" class="form-control form-control-sm quantity" name="materials[][quantity]"
+                                                    <input type="number" step="0.01" class="form-control form-control-sm quantity" name="materials[<?php echo $rowIdx; ?>][quantity]"
                                                            value="1" required onchange="calculateRowTotal(this)" onkeyup="calculateRowTotal(this)">
                                                 </td>
                                                 <td>
-                                                    <input type="number" step="0.01" class="form-control form-control-sm unit-price" name="materials[][unit_price]"
+                                                    <input type="number" step="0.01" class="form-control form-control-sm unit-price" name="materials[<?php echo $rowIdx; ?>][unit_price]"
                                                            value="0" required onchange="calculateRowTotal(this)" onkeyup="calculateRowTotal(this)">
                                                 </td>
                                                 <td>
@@ -343,6 +345,7 @@ include '../includes/sidebar.php';
 
 <script>
 var materialsData = <?php echo json_encode($rawMaterials); ?>;
+var materialRowIndex = <?php echo $rowIdx; ?>;
 
 function onMaterialSelect(el) {
     var row = el.closest('tr');
@@ -357,14 +360,15 @@ function onMaterialSelect(el) {
 function addMaterialRow() {
     var tbody = document.getElementById('materialBody');
     var row = tbody.insertRow();
-    var html = '<td><select class="form-select form-select-sm material-select" name="materials[][material_id]" required onchange="onMaterialSelect(this)"><option value="">Select Material</option>';
+    var idx = materialRowIndex++;
+    var html = '<td><select class="form-select form-select-sm material-select" name="materials['+idx+'][material_id]" required onchange="onMaterialSelect(this)"><option value="">Select Material</option>';
     materialsData.forEach(function(m) {
         html += '<option value="' + m.id + '" data-price="' + (m.pkr_price || 0) + '" data-stock="' + m.current_stock + '">' + m.material_code + ' - ' + m.material_name + '</option>';
     });
     html += '</select></td>';
     html += '<td class="text-center stock-display">0</td>';
-    html += '<td><input type="number" step="0.01" class="form-control form-control-sm quantity" name="materials[][quantity]" value="1" required onchange="calculateRowTotal(this)" onkeyup="calculateRowTotal(this)"></td>';
-    html += '<td><input type="number" step="0.01" class="form-control form-control-sm unit-price" name="materials[][unit_price]" value="0" required onchange="calculateRowTotal(this)" onkeyup="calculateRowTotal(this)"></td>';
+    html += '<td><input type="number" step="0.01" class="form-control form-control-sm quantity" name="materials['+idx+'][quantity]" value="1" required onchange="calculateRowTotal(this)" onkeyup="calculateRowTotal(this)"></td>';
+    html += '<td><input type="number" step="0.01" class="form-control form-control-sm unit-price" name="materials['+idx+'][unit_price]" value="0" required onchange="calculateRowTotal(this)" onkeyup="calculateRowTotal(this)"></td>';
     html += '<td><input type="text" class="form-control form-control-sm row-total" value="0.00" readonly></td>';
     html += '<td class="text-center"><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)"><i class="fas fa-times"></i></button></td>';
     row.innerHTML = html;

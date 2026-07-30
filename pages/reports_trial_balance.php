@@ -23,7 +23,7 @@ $totalCashOut = tbVal("SELECT COALESCE(SUM(amount),0) AS total FROM supplier_pay
     + tbVal("SELECT COALESCE(SUM(amount),0) AS total FROM party_transactions WHERE type='paid' AND payment_method='cash'");
 $netCash = $totalCash - $totalCashOut;
 
-$bankBalance = tbVal("SELECT COALESCE(SUM(current_balance),0) AS total FROM banks");
+$bankBalance = tbVal("SELECT COALESCE(balance,0) AS total FROM accounts WHERE account_type = 'Bank' ORDER BY id DESC LIMIT 1");
 $rmStock = tbVal("SELECT COALESCE(SUM(current_stock * purchase_price_pkr),0) AS total FROM raw_materials");
 $fgStock = tbVal("SELECT COALESCE(SUM(current_stock * cost_price),0) AS total FROM finished_goods");
 $partyReceivable = tbVal("SELECT COALESCE(SUM(current_balance),0) AS total FROM parties WHERE current_balance > 0");
@@ -49,7 +49,7 @@ $equity = $totalAssets - $totalLiabilities;
 ?>
 
 <div class="row mb-3"><div class="col-12"><div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center"><span><i class="fas fa-balance-scale me-2"></i>Trial Balance as of <?php echo date('d-m-Y', strtotime($asOfDate));?></span><a href="trial_balance_print.php?as_of_date=<?php echo urlencode($asOfDate); ?>" target="_blank" class="btn btn-danger btn-sm"><i class="fas fa-print me-1"></i>Print</a></div>
+    <div class="card-header d-flex justify-content-between align-items-center"><span><i class="fas fa-balance-scale me-2"></i>Trial Balance as of <?php echo formatDate($asOfDate);?></span><a href="trial_balance_print.php?as_of_date=<?php echo urlencode($asOfDate); ?>" target="_blank" class="btn btn-danger btn-sm"><i class="fas fa-print me-1"></i>Print</a></div>
     <div class="card-body"><form method="GET" class="row g-3">
         <div class="col-md-4"><label class="form-label">As of Date</label><input type="date" class="form-control" name="as_of_date" value="<?php echo $asOfDate; ?>"></div>
         <div class="col-md-4 d-flex align-items-end"><button type="submit" class="btn btn-primary w-100"><i class="fas fa-search me-2"></i>Generate</button></div>
