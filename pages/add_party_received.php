@@ -14,6 +14,7 @@ if ($flash) {
 
 $partyId = isset($_GET['party_id']) ? (int)$_GET['party_id'] : 0;
 $parties = getRows("SELECT id, party_name, party_code, current_balance FROM parties WHERE status = 'active' ORDER BY party_name");
+$bankAccounts = getActiveBankAccounts();
 
 // Handle POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -23,6 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $description = trim($_POST['description'] ?? '');
     $reference_no = trim($_POST['reference_no'] ?? '');
     $payment_method = $_POST['payment_method'] ?? 'cash';
+    $bank_id = ($payment_method === 'bank') ? (int)($_POST['bank_id'] ?? 0) : null;
+    $bank_name = null;
+    if ($bank_id > 0) {
+        $bRow = getRow("SELECT bank_name, account_number FROM bank_accounts WHERE id = ?", 'i', [$bank_id]);
+        if ($bRow) {
+            $bank_name = $bRow['bank_name'] . ' (' . $bRow['account_number'] . ')';
+        }
+    }
 
     if (empty($party_id)) {
         $message = 'Please select a party!';
@@ -33,17 +42,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (empty($transaction_date)) {
         $message = 'Please select date!';
         $messageType = 'danger';
+    } elseif ($payment_method === 'bank' && empty($bank_id)) {
+        $message = 'Please select a bank account!';
+        $messageType = 'danger';
     } else {
         $currentDateTime = getCurrentDateTime();
         $txn_no = generateCode('PR');
 
-        $result = insertData("INSERT INTO party_transactions (transaction_no, party_id, type, amount, transaction_date, description, reference_no, payment_method, date_time) VALUES (?,?,?,?,?,?,?,?,?)",
-            'sssdsssss', [$txn_no, $party_id, 'received', $amount, $transaction_date, $description, $reference_no, $payment_method, $currentDateTime]);
+        $result = insertData("INSERT INTO party_transactions (transaction_no, party_id, type, amount, transaction_date, description, reference_no, payment_method, bank_id, bank_name, date_time) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            'sssdssssiss', [$txn_no, $party_id, 'received', $amount, $transaction_date, $description, $reference_no, $payment_method, $bank_id, $bank_name, $currentDateTime]);
 
         if ($result !== false) {
+            if ($payment_method === 'bank' && $bank_id > 0) {
+                updateBankBalance($bank_id, $amount, 'in');
+            }
             modifyData("UPDATE parties SET current_balance = current_balance - ? WHERE id = ?", 'di', [$amount, $party_id]);
             setFlash('Received ' . formatCurrency($amount) . ' successfully!', 'success');
-            header('Location: party_detail.php?id=' . $party_id);
+            header('Location: general_party_ledger.php?id=' . $party_id);
             exit;
         } else {
             $message = 'Error recording receipt!';
@@ -104,9 +119,20 @@ include '../includes/sidebar.php';
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Payment Method</label>
-                            <select class="form-select" name="payment_method">
+                            <select class="form-select" name="payment_method" id="party_payment_method" onchange="togglePartyBank(this.value)">
                                 <option value="cash">Cash</option>
                                 <option value="bank">Bank</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12 mb-3" id="party_bank_group" style="display:none;">
+                            <label class="form-label text-primary fw-bold"><i class="fas fa-university me-1"></i>Bank Account *</label>
+                            <select class="form-select" name="bank_id" id="party_bank_id">
+                                <option value="">-- Select Bank Account --</option>
+                                <?php foreach ($bankAccounts as $ba): ?>
+                                    <option value="<?php echo $ba['id']; ?>">
+                                        <?php echo htmlspecialchars($ba['bank_name']); ?> - <?php echo htmlspecialchars($ba['account_number']); ?> (Bal: Rs. <?php echo number_format($ba['current_balance'], 2); ?>)
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                     </div>
@@ -119,5 +145,16 @@ include '../includes/sidebar.php';
         </div>
     </div>
 </div>
+
+<script>
+function togglePartyBank(method) {
+    var bg = document.getElementById('party_bank_group');
+    if (bg) {
+        bg.style.display = (method === 'bank') ? 'block' : 'none';
+        var bSel = document.getElementById('party_bank_id');
+        if (bSel) bSel.required = (method === 'bank');
+    }
+}
+</script>
 
 <?php include '../includes/footer.php'; ?>

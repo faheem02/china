@@ -81,7 +81,7 @@ body { background: #f0f2f5; }
 <body>
 
 <div class="action-buttons">
-    <a href="customer_ledger.php?id=<?php echo $customerId; ?>" class="btn btn-outline-light btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+    <a href="customer_party_ledger.php?id=<?php echo $customerId; ?>" class="btn btn-outline-light btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
     <span class="text-white fw-bold me-2"><i class="fas fa-book me-1"></i>Customer Ledger</span>
     <button class="btn btn-light btn-sm" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
     <button class="btn btn-success btn-sm" onclick="downloadPDF()"><i class="fas fa-download me-1"></i>Download PDF</button>

@@ -16,25 +16,36 @@ if ($flash) {
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
     
-    $sale = getRow("SELECT customer_id, customer_type, balance FROM sales WHERE id = ?", 'i', [$id]);
+    $sale = getRow("SELECT customer_id, customer_type, balance, paid_amount, payment_method, bank_id FROM sales WHERE id = ?", 'i', [$id]);
     
-    $sql = "SELECT product_id, quantity FROM sale_items WHERE sale_id = ?";
+    $sql = "SELECT product_id, product_type, quantity FROM sale_items WHERE sale_id = ?";
     $items = getRows($sql, 'i', [$id]);
+    
+    $sql = "DELETE FROM sale_items WHERE sale_id = ?";
+    modifyData($sql, 'i', [$id]);
     
     $sql = "DELETE FROM sales WHERE id = ?";
     $result = modifyData($sql, 'i', [$id]);
     
-    if ($result !== false) {
-        $sql = "DELETE FROM sale_items WHERE sale_id = ?";
-        modifyData($sql, 'i', [$id]);
-        
+    if ($result) {
         foreach ($items as $item) {
-            $sql = "UPDATE finished_goods SET current_stock = current_stock + ? WHERE id = ?";
+            if (($item['product_type'] ?? 'finished_good') === 'raw_material') {
+                $sql = "UPDATE raw_materials SET current_stock = current_stock + ? WHERE id = ?";
+            } else {
+                $sql = "UPDATE finished_goods SET current_stock = current_stock + ? WHERE id = ?";
+            }
             modifyData($sql, 'di', [$item['quantity'], $item['product_id']]);
         }
 
         if ($sale && $sale['customer_type'] === 'credit' && $sale['customer_id'] > 0 && $sale['balance'] > 0) {
             modifyData("UPDATE customers SET current_balance = current_balance - ? WHERE id = ?", 'di', [$sale['balance'], $sale['customer_id']]);
+        }
+        
+        if ($sale && ($sale['payment_method'] === 'cash' || $sale['payment_method'] === 'bank') && $sale['paid_amount'] > 0) {
+            if ($sale['payment_method'] === 'bank' && !empty($sale['bank_id'])) {
+                updateBankBalance($sale['bank_id'], $sale['paid_amount'], 'out');
+            }
+            modifyData("DELETE FROM accounts WHERE reference_type = 'Sale' AND reference_id = ?", 'i', [$id]);
         }
         
         setFlash('Sale deleted successfully! Stock restored.', 'success');
@@ -91,8 +102,6 @@ include '../includes/sidebar.php';
                                 <th>Total (PKR)</th>
                                 <th>Discount</th>
                                 <th>Net Amount</th>
-                                <th>Paid</th>
-                                <th>Balance</th>
                                 <th>Payment</th>
                                 <th>Actions</th>
                             </tr>
@@ -101,9 +110,6 @@ include '../includes/sidebar.php';
                             <?php if (count($sales) > 0): ?>
                                 <?php $counter = 1; ?>
                                 <?php foreach ($sales as $sale): ?>
-                                    <?php
-                                    $bal = $sale['balance'] ?? ($sale['net_amount'] - $sale['paid_amount']);
-                                    ?>
                                     <tr>
                                         <td><?php echo $counter++; ?></td>
                                         <td><strong><?php echo htmlspecialchars($sale['sale_no']); ?></strong></td>
@@ -112,14 +118,13 @@ include '../includes/sidebar.php';
                                         <td><?php echo number_format($sale['total_amount'], 2); ?></td>
                                         <td><?php echo number_format($sale['discount'] ?? 0, 2); ?></td>
                                         <td><strong><?php echo number_format($sale['net_amount'], 2); ?></strong></td>
-                                        <td><?php echo number_format($sale['paid_amount'], 2); ?></td>
-                                        <td class="<?php echo $bal > 0 ? 'text-danger' : 'text-success'; ?>">
-                                            <strong><?php echo number_format($bal, 2); ?></strong>
-                                        </td>
                                         <td>
                                             <span class="badge badge-status badge-<?php echo strtolower($sale['payment_status']); ?>">
                                                 <?php echo ucfirst($sale['payment_status']); ?>
                                             </span>
+                                            <?php if ($sale['payment_method'] === 'bank'): ?>
+                                                <div class="mt-1"><span class="badge bg-info text-dark" style="font-size:10px;"><i class="fas fa-university me-1"></i><?php echo htmlspecialchars($sale['bank_name'] ?: 'Bank'); ?></span></div>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
                                             <div class="btn-group btn-group-sm">

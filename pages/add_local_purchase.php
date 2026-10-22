@@ -51,6 +51,8 @@ foreach ($finishedGoods as $fg) {
     ];
 }
 
+$bankAccounts = getActiveBankAccounts();
+
 $editPurchase = null;
 $editItems = [];
 if (isset($_GET['id']) && is_numeric($_GET['id'])) {
@@ -78,14 +80,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $invoice_no = trim($_POST['invoice_no']);
     $total_amount = (float)$_POST['total_amount'];
     $paid_amount = (float)$_POST['paid_amount'];
+    $payment_method = $_POST['payment_method'] ?? 'credit';
     $previous_balance = (float)$_POST['previous_balance'];
     $materialsPost = isset($_POST['materials']) ? $_POST['materials'] : [];
+
+    if (!in_array($payment_method, ['cash', 'bank', 'credit'], true)) {
+        $payment_method = 'credit';
+    }
+    $bank_id = ($payment_method === 'bank') ? (int)($_POST['bank_id'] ?? 0) : null;
+    $bank_name = null;
+    if ($bank_id > 0) {
+        $bRow = getRow("SELECT bank_name, account_number FROM bank_accounts WHERE id = ?", 'i', [$bank_id]);
+        if ($bRow) {
+            $bank_name = $bRow['bank_name'] . ' (' . $bRow['account_number'] . ')';
+        }
+    }
 
     if (empty($supplier_id)) {
         $message = 'Please select a supplier!';
         $messageType = 'danger';
     } elseif (empty($purchase_date)) {
         $message = 'Please select purchase date!';
+        $messageType = 'danger';
+    } elseif ($payment_method === 'bank' && $paid_amount > 0 && empty($bank_id)) {
+        $message = 'Please select a bank account!';
         $messageType = 'danger';
     } elseif (empty($materialsPost)) {
         $message = 'Please add at least one material!';
@@ -95,6 +113,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $balance = $total_amount - $paid_amount;
 
         if ($id > 0) {
+            $oldPurchase = getRow("SELECT supplier_id, balance, paid_amount, payment_method, bank_id FROM local_purchases WHERE id = ?", 'i', [$id]);
+            if ($oldPurchase) {
+                modifyData("UPDATE local_suppliers SET current_balance = current_balance - ? WHERE id = ?", 'di', [(float)$oldPurchase['balance'], (int)$oldPurchase['supplier_id']]);
+                if ($oldPurchase['payment_method'] === 'bank' && !empty($oldPurchase['bank_id']) && $oldPurchase['paid_amount'] > 0) {
+                    updateBankBalance($oldPurchase['bank_id'], $oldPurchase['paid_amount'], 'in');
+                }
+            }
+
             $oldItems = getRows("SELECT material_id, quantity, item_type FROM local_purchase_items WHERE purchase_id = ?", 'i', [$id]);
             foreach ($oldItems as $oldItem) {
                 if ($oldItem['item_type'] === 'finished_good') {
@@ -104,8 +130,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            modifyData("UPDATE local_purchases SET supplier_id=?, purchase_date=?, invoice_no=?, total_amount=?, paid_amount=?, balance=?, previous_balance=?, date_time=? WHERE id=?",
-                'issddddsi', [$supplier_id, $purchase_date, $invoice_no, $total_amount, $paid_amount, $balance, $previous_balance, $currentDateTime, $id]);
+            modifyData("UPDATE local_purchases SET supplier_id=?, purchase_date=?, invoice_no=?, total_amount=?, paid_amount=?, balance=?, previous_balance=?, payment_method=?, bank_id=?, bank_name=?, date_time=? WHERE id=?",
+                'issddddssisi', [$supplier_id, $purchase_date, $invoice_no, $total_amount, $paid_amount, $balance, $previous_balance, $payment_method, $bank_id, $bank_name, $currentDateTime, $id]);
+
+            if ($payment_method === 'bank' && $bank_id > 0 && $paid_amount > 0) {
+                updateBankBalance($bank_id, $paid_amount, 'out');
+            }
+
+            modifyData("UPDATE local_suppliers SET current_balance = current_balance + ? WHERE id = ?", 'di', [$balance, $supplier_id]);
 
             modifyData("DELETE FROM local_purchase_items WHERE purchase_id = ?", 'i', [$id]);
 
@@ -131,10 +163,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         } else {
             $purchase_no = generateCode('LP');
-            $purchase_id = insertData("INSERT INTO local_purchases (purchase_no, supplier_id, purchase_date, invoice_no, total_amount, paid_amount, balance, previous_balance, date_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                'sissdddds', [$purchase_no, $supplier_id, $purchase_date, $invoice_no, $total_amount, $paid_amount, $balance, $previous_balance, $currentDateTime]);
+            $purchase_id = insertData("INSERT INTO local_purchases (purchase_no, supplier_id, purchase_date, invoice_no, total_amount, paid_amount, balance, previous_balance, payment_method, bank_id, bank_name, date_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                'sissddddssis', [$purchase_no, $supplier_id, $purchase_date, $invoice_no, $total_amount, $paid_amount, $balance, $previous_balance, $payment_method, $bank_id, $bank_name, $currentDateTime]);
 
             if ($purchase_id) {
+                if ($payment_method === 'bank' && $bank_id > 0 && $paid_amount > 0) {
+                    updateBankBalance($bank_id, $paid_amount, 'out');
+                }
+
+                modifyData("UPDATE local_suppliers SET current_balance = current_balance + ? WHERE id = ?", 'di', [$balance, $supplier_id]);
+
                 foreach ($materialsPost as $material) {
                     $rawMaterialId = $material['material_id'];
                     $isFG = strpos($rawMaterialId, 'fg_') === 0;
@@ -178,6 +216,82 @@ include '../includes/sidebar.php';
         <?php endif; ?>
     </div>
 </div>
+
+<style>
+/* Material Search Autocomplete */
+.material-search-wrap {
+    position: relative;
+    width: 100%;
+}
+.material-search-wrap .material-search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 11px;
+    pointer-events: none;
+    z-index: 5;
+}
+.material-search-wrap .material-search-input {
+    padding-left: 28px;
+    font-size: 13px;
+    border-radius: 6px;
+    background-color: #fff;
+}
+.material-search-wrap .material-search-input:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+.material-search-dropdown {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    min-width: 320px;
+    background: #ffffff;
+    border: 1.5px solid #94a3b8;
+    border-radius: 8px;
+    box-shadow: 0 14px 30px rgba(0,0,0,0.18), 0 4px 10px rgba(0,0,0,0.08);
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 9999;
+    display: none;
+}
+.material-search-dropdown.show {
+    display: block;
+}
+.material-dropdown-item {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.15s;
+    font-size: 13px;
+}
+.material-dropdown-item:last-child {
+    border-bottom: none;
+}
+.material-dropdown-item:hover,
+.material-dropdown-item.active {
+    background-color: #eff6ff;
+}
+#materialTable tbody td {
+    position: relative;
+    vertical-align: middle;
+}
+#materialTable tbody td.cell-dropdown-open {
+    z-index: 1050;
+}
+.card {
+    overflow: visible !important;
+}
+.table-responsive {
+    overflow: visible !important;
+}
+</style>
 
 <div class="row mb-3">
     <div class="col-12">
@@ -267,20 +381,25 @@ include '../includes/sidebar.php';
                                         <?php $rowIdx = 0; ?>
                                         <?php if ($editItems): ?>
                                             <?php foreach ($editItems as $item): ?>
+                                                <?php
+                                                    $valId = ($item['item_type'] === 'finished_good' ? 'fg_' : '') . $item['material_id'];
+                                                    $displayVal = $item['item_label'] ?? ($item['item_name'] ?? '');
+                                                ?>
                                                 <tr>
                                                     <td>
-                                                        <select class="form-select form-select-sm material-select" name="materials[<?php echo $rowIdx; ?>][material_id]" required onchange="onMaterialSelect(this)">
-                                                            <option value="">Select</option>
-                                                            <?php foreach ($materials as $m): ?>
-                                                                <option value="<?php echo $m['id']; ?>"
-                                                                    data-price="<?php echo $m['price']; ?>"
-                                                                    data-stock="<?php echo $m['stock']; ?>"
-                                                                    data-type="<?php echo $m['item_type']; ?>"
-                                                                    <?php echo ($item['material_id'] == preg_replace('/^fg_/', '', $m['id']) && $item['item_type'] == $m['item_type']) ? 'selected' : ''; ?>>
-                                                                    <?php echo $m['display_label']; ?>
-                                                                </option>
-                                                            <?php endforeach; ?>
-                                                        </select>
+                                                        <div class="material-search-wrap">
+                                                            <i class="fas fa-search material-search-icon"></i>
+                                                            <input type="text" class="form-control form-control-sm material-search-input" 
+                                                                   placeholder="Type material name or code..." 
+                                                                   value="<?php echo htmlspecialchars($displayVal); ?>" 
+                                                                   autocomplete="off" 
+                                                                   oninput="filterMaterial(this)" 
+                                                                   onfocus="filterMaterial(this)" 
+                                                                   onblur="onMaterialInputBlur(this)" 
+                                                                   onkeydown="navigateMaterial(event, this)">
+                                                            <input type="hidden" class="material-id-input" name="materials[<?php echo $rowIdx; ?>][material_id]" value="<?php echo htmlspecialchars($valId); ?>" required>
+                                                            <div class="material-search-dropdown shadow-sm"></div>
+                                                        </div>
                                                     </td>
                                                     <td><input type="number" step="0.01" class="form-control form-control-sm qty" name="materials[<?php echo $rowIdx; ?>][quantity]" value="<?php echo $item['quantity']; ?>" required oninput="calcRow(this)"></td>
                                                     <td><input type="number" step="0.01" class="form-control form-control-sm unit-price" name="materials[<?php echo $rowIdx; ?>][unit_price]" value="<?php echo $item['unit_price']; ?>" required oninput="calcRow(this)"></td>
@@ -293,20 +412,22 @@ include '../includes/sidebar.php';
                                         <?php else: ?>
                                             <tr>
                                                 <td>
-                                                    <select class="form-select form-select-sm material-select" name="materials[<?php echo $rowIdx; ?>][material_id]" required onchange="onMaterialSelect(this)">
-                                                        <option value="">Select</option>
-                                                        <?php foreach ($materials as $m): ?>
-                                                            <option value="<?php echo $m['id']; ?>"
-                                                                data-price="<?php echo $m['price']; ?>"
-                                                                data-stock="<?php echo $m['stock']; ?>"
-                                                                data-type="<?php echo $m['item_type']; ?>">
-                                                                <?php echo $m['display_label']; ?>
-                                                            </option>
-                                                        <?php endforeach; ?>
-                                                    </select>
+                                                    <div class="material-search-wrap">
+                                                        <i class="fas fa-search material-search-icon"></i>
+                                                        <input type="text" class="form-control form-control-sm material-search-input" 
+                                                               placeholder="Type material name or code..." 
+                                                               value="" 
+                                                               autocomplete="off" 
+                                                               oninput="filterMaterial(this)" 
+                                                               onfocus="filterMaterial(this)" 
+                                                               onblur="onMaterialInputBlur(this)" 
+                                                               onkeydown="navigateMaterial(event, this)">
+                                                        <input type="hidden" class="material-id-input" name="materials[0][material_id]" value="" required>
+                                                        <div class="material-search-dropdown shadow-sm"></div>
+                                                    </div>
                                                 </td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm qty" name="materials[<?php echo $rowIdx; ?>][quantity]" value="1" required oninput="calcRow(this)"></td>
-                                                <td><input type="number" step="0.01" class="form-control form-control-sm unit-price" name="materials[<?php echo $rowIdx; ?>][unit_price]" value="0" required oninput="calcRow(this)"></td>
+                                                <td><input type="number" step="0.01" class="form-control form-control-sm qty" name="materials[0][quantity]" value="1" required oninput="calcRow(this)"></td>
+                                                <td><input type="number" step="0.01" class="form-control form-control-sm unit-price" name="materials[0][unit_price]" value="0" required oninput="calcRow(this)"></td>
                                                 <td><input type="text" class="form-control form-control-sm row-total" value="0.00" readonly></td>
                                                 <td class="text-center stock-display">-</td>
                                                 <td class="text-center"><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)"><i class="fas fa-times"></i></button></td>
@@ -350,9 +471,28 @@ include '../includes/sidebar.php';
                                 </div>
                                 <div class="card-body">
                                     <div class="row">
-                                        <div class="col-md-6 mb-3">
+                                        <div class="col-md-4 mb-3">
                                             <label class="form-label">Paid Amount (PKR)</label>
                                             <input type="number" step="0.01" class="form-control" id="paidAmount" name="paid_amount" value="<?php echo $editPurchase ? $editPurchase['paid_amount'] : '0.00'; ?>" oninput="calcSummary()">
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label class="form-label">Payment Method</label>
+                                            <select class="form-select" name="payment_method" id="lp_payment_method" onchange="toggleLpBank(this.value)">
+                                                <option value="credit" <?php echo (!$editPurchase || ($editPurchase['payment_method'] ?? 'credit') === 'credit') ? 'selected' : ''; ?>>Credit</option>
+                                                <option value="cash" <?php echo ($editPurchase && ($editPurchase['payment_method'] ?? '') === 'cash') ? 'selected' : ''; ?>>Cash</option>
+                                                <option value="bank" <?php echo ($editPurchase && ($editPurchase['payment_method'] ?? '') === 'bank') ? 'selected' : ''; ?>>Bank</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4 mb-3" id="lp_bank_group" style="display: <?php echo ($editPurchase && ($editPurchase['payment_method'] ?? '') === 'bank') ? 'block' : 'none'; ?>;">
+                                            <label class="form-label text-primary fw-bold"><i class="fas fa-university me-1"></i>Bank Account *</label>
+                                            <select class="form-select" name="bank_id" id="lp_bank_id">
+                                                <option value="">-- Select Bank --</option>
+                                                <?php foreach ($bankAccounts as $ba): ?>
+                                                    <option value="<?php echo $ba['id']; ?>" <?php echo ($editPurchase && ($editPurchase['bank_id'] ?? null) == $ba['id']) ? 'selected' : ''; ?>>
+                                                        <?php echo htmlspecialchars($ba['bank_name']); ?> - <?php echo htmlspecialchars($ba['account_number']); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
                                         </div>
                                     </div>
                                 </div>
@@ -373,6 +513,14 @@ include '../includes/sidebar.php';
 </div>
 
 <script>
+function toggleLpBank(method) {
+    var bg = document.getElementById('lp_bank_group');
+    if (bg) {
+        bg.style.display = (method === 'bank') ? 'block' : 'none';
+        var bSel = document.getElementById('lp_bank_id');
+        if (bSel) bSel.required = (method === 'bank');
+    }
+}
 var materialsData = <?php echo json_encode(array_values($materials)); ?>;
 var materialRowIndex = <?php echo $rowIdx; ?>;
 
@@ -393,29 +541,197 @@ function onSupplierChange() {
     calcSummary();
 }
 
-function onMaterialSelect(el) {
-    var row = el.closest('tr');
-    var opt = el.options[el.selectedIndex];
-    var price = parseFloat(opt.dataset.price) || 0;
-    row.querySelector('.unit-price').value = price.toFixed(2);
-    var stockEl = row.querySelector('.stock-display');
-    if (stockEl) stockEl.textContent = parseFloat(opt.dataset.stock || 0).toFixed(2);
-    calcRow(el);
+function filterMaterial(input) {
+    const q = input.value.trim().toLowerCase();
+    const wrap = input.closest('.material-search-wrap');
+    const dropdown = wrap.querySelector('.material-search-dropdown');
+    const td = input.closest('td');
+
+    // Close any other open dropdowns
+    document.querySelectorAll('.material-search-dropdown.show').forEach(function(dd) {
+        if (dd !== dropdown) {
+            dd.classList.remove('show');
+            if (dd.closest('td')) dd.closest('td').classList.remove('cell-dropdown-open');
+        }
+    });
+
+    let matches = [];
+    if (!q) {
+        matches = materialsData.slice(0, 15);
+    } else {
+        matches = materialsData.filter(function(m) {
+            const name = (m.name || '').toLowerCase();
+            const code = (m.code || '').toLowerCase();
+            const label = (m.display_label || '').toLowerCase();
+            return name.includes(q) || code.includes(q) || label.includes(q);
+        }).slice(0, 20);
+    }
+
+    if (matches.length === 0) {
+        dropdown.innerHTML = '<div class="p-2 text-center text-muted small">No materials found</div>';
+        dropdown.classList.add('show');
+        td.classList.add('cell-dropdown-open');
+        return;
+    }
+
+    let html = '';
+    matches.forEach(function(m, idx) {
+        const isRaw = (m.item_type === 'raw_material');
+        const badgeClass = isRaw ? 'bg-primary' : 'bg-success';
+        const badgeText = isRaw ? 'RAW' : 'FG';
+        const name = escapeHtml(m.name || '');
+        const code = escapeHtml(m.code || '');
+        const unit = escapeHtml(m.unit || '');
+        const stock = parseFloat(m.stock || 0);
+        const price = parseFloat(m.price || 0);
+
+        html += '<div class="material-dropdown-item ' + (idx === 0 ? 'active' : '') + '" data-id="' + m.id + '" onmousedown="selectMaterialItem(this)">' +
+            '<div>' +
+                '<div><span class="badge ' + badgeClass + ' me-1">' + badgeText + '</span><strong>' + name + '</strong></div>' +
+                '<small class="text-muted ps-1">Code: ' + code + ' | Stock: ' + stock + ' ' + unit + '</small>' +
+            '</div>' +
+            '<div class="text-end ps-2">' +
+                '<span class="fw-bold text-primary">Rs. ' + price.toFixed(2) + '</span>' +
+            '</div>' +
+        '</div>';
+    });
+
+    dropdown.innerHTML = html;
+    dropdown.classList.add('show');
+    td.classList.add('cell-dropdown-open');
 }
 
-function buildMaterialOptions() {
-    var html = '<option value="">Select</option>';
-    materialsData.forEach(function(m) {
-        html += '<option value="'+m.id+'" data-price="'+m.price+'" data-stock="'+m.stock+'" data-type="'+m.item_type+'">'+m.display_label+'</option>';
-    });
-    return html;
+function selectMaterialItem(itemEl) {
+    const id = itemEl.getAttribute('data-id');
+    const wrap = itemEl.closest('.material-search-wrap');
+    const input = wrap.querySelector('.material-search-input');
+    const hidden = wrap.querySelector('.material-id-input');
+    const dropdown = wrap.querySelector('.material-search-dropdown');
+    const row = itemEl.closest('tr');
+    const td = itemEl.closest('td');
+
+    const m = materialsData.find(function(item) { return item.id == id; });
+    if (!m) return;
+
+    hidden.value = m.id;
+    input.value = m.display_label;
+    dropdown.classList.remove('show');
+    if (td) td.classList.remove('cell-dropdown-open');
+
+    const price = parseFloat(m.price || 0);
+    const stock = parseFloat(m.stock || 0);
+    row.querySelector('.unit-price').value = price.toFixed(2);
+    const stockEl = row.querySelector('.stock-display');
+    if (stockEl) stockEl.textContent = stock.toFixed(2);
+
+    calcRow(input);
+
+    const qtyInput = row.querySelector('.qty');
+    if (qtyInput) {
+        qtyInput.focus();
+        qtyInput.select();
+    }
 }
+
+function onMaterialInputBlur(input) {
+    setTimeout(function() {
+        const wrap = input.closest('.material-search-wrap');
+        const hidden = wrap.querySelector('.material-id-input');
+        const dropdown = wrap.querySelector('.material-search-dropdown');
+        const td = input.closest('td');
+
+        dropdown.classList.remove('show');
+        if (td) td.classList.remove('cell-dropdown-open');
+
+        if (!input.value.trim()) {
+            hidden.value = '';
+            const row = input.closest('tr');
+            if (row) {
+                const priceInput = row.querySelector('.unit-price');
+                if (priceInput) priceInput.value = '0.00';
+                const stockEl = row.querySelector('.stock-display');
+                if (stockEl) stockEl.textContent = '-';
+                calcRow(input);
+            }
+        }
+    }, 200);
+}
+
+function navigateMaterial(e, input) {
+    const wrap = input.closest('.material-search-wrap');
+    const dropdown = wrap.querySelector('.material-search-dropdown');
+    const items = dropdown.querySelectorAll('.material-dropdown-item');
+    if (!items.length || !dropdown.classList.contains('show')) {
+        if (e.key === 'ArrowDown') {
+            filterMaterial(input);
+            e.preventDefault();
+        }
+        return;
+    }
+
+    let activeIndex = -1;
+    items.forEach(function(item, idx) {
+        if (item.classList.contains('active')) activeIndex = idx;
+    });
+
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = (activeIndex + 1) >= items.length ? 0 : activeIndex + 1;
+        if (items[activeIndex]) items[activeIndex].classList.remove('active');
+        items[next].classList.add('active');
+        items[next].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prev = (activeIndex - 1) < 0 ? items.length - 1 : activeIndex - 1;
+        if (items[activeIndex]) items[activeIndex].classList.remove('active');
+        items[prev].classList.add('active');
+        items[prev].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (activeIndex > -1 && items[activeIndex]) {
+            selectMaterialItem(items[activeIndex]);
+        } else if (items.length > 0) {
+            selectMaterialItem(items[0]);
+        }
+    } else if (e.key === 'Escape') {
+        dropdown.classList.remove('show');
+        const td = input.closest('td');
+        if (td) td.classList.remove('cell-dropdown-open');
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return text.toString()
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.material-search-wrap')) {
+        document.querySelectorAll('.material-search-dropdown.show').forEach(function(dd) {
+            dd.classList.remove('show');
+            const td = dd.closest('td');
+            if (td) td.classList.remove('cell-dropdown-open');
+        });
+    }
+});
 
 function addMaterialRow() {
     var tbody = document.getElementById('materialBody');
     var row = tbody.insertRow();
     var idx = materialRowIndex++;
-    var html = '<td><select class="form-select form-select-sm material-select" name="materials['+idx+'][material_id]" required onchange="onMaterialSelect(this)">' + buildMaterialOptions() + '</select></td>';
+    var html = '<td>' +
+        '<div class="material-search-wrap">' +
+            '<i class="fas fa-search material-search-icon"></i>' +
+            '<input type="text" class="form-control form-control-sm material-search-input" placeholder="Type material name or code..." autocomplete="off" oninput="filterMaterial(this)" onfocus="filterMaterial(this)" onblur="onMaterialInputBlur(this)" onkeydown="navigateMaterial(event, this)">' +
+            '<input type="hidden" class="material-id-input" name="materials['+idx+'][material_id]" value="" required>' +
+            '<div class="material-search-dropdown shadow-sm"></div>' +
+        '</div>' +
+    '</td>';
     html += '<td><input type="number" step="0.01" class="form-control form-control-sm qty" name="materials['+idx+'][quantity]" value="1" required oninput="calcRow(this)"></td>';
     html += '<td><input type="number" step="0.01" class="form-control form-control-sm unit-price" name="materials['+idx+'][unit_price]" value="0" required oninput="calcRow(this)"></td>';
     html += '<td><input type="text" class="form-control form-control-sm row-total" value="0.00" readonly></td>';
@@ -467,12 +783,13 @@ function validateForm() {
     }
     var valid = true;
     rows.forEach(function(row) {
-        if (!row.querySelector('.material-select').value) valid = false;
+        var hidden = row.querySelector('.material-id-input');
+        if (!hidden || !hidden.value) valid = false;
         if ((parseFloat(row.querySelector('.qty').value) || 0) <= 0) valid = false;
         if ((parseFloat(row.querySelector('.unit-price').value) || 0) <= 0) valid = false;
     });
     if (!valid) {
-        alert('Please ensure all materials have valid data (material, qty > 0, price > 0).');
+        alert('Please ensure all materials are selected and have valid data (qty > 0, price > 0).');
         return false;
     }
     calcSummary();

@@ -128,7 +128,12 @@ include '../includes/sidebar.php';
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span><i class="fas fa-user-friends me-2"></i>Customers List</span>
-                <a href="../index.php" class="btn btn-light btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+                <div class="d-flex gap-2">
+                    <a href="customers_print.php" target="_blank" class="btn btn-danger btn-sm">
+                        <i class="fas fa-print me-1"></i>Print
+                    </a>
+                    <a href="../index.php" class="btn btn-light btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+                </div>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -167,8 +172,11 @@ include '../includes/sidebar.php';
                                         </td>
                                         <td>
                                             <div class="btn-group btn-group-sm">
-                                                <a href="customer_ledger.php?id=<?php echo $customer['id']; ?>" class="btn btn-info" title="Ledger">
+                                                <a href="customer_party_ledger.php?id=<?php echo $customer['id']; ?>" class="btn btn-info" title="Ledger">
                                                     <i class="fas fa-book"></i>
+                                                </a>
+                                                <a href="customer_ledger_print.php?id=<?php echo $customer['id']; ?>" target="_blank" class="btn btn-success" title="Print Ledger">
+                                                    <i class="fas fa-print"></i>
                                                 </a>
                                                 <button type="button" class="btn btn-warning" title="Edit"
                                                     data-bs-toggle="modal" data-bs-target="#customerModal"
@@ -192,12 +200,6 @@ include '../includes/sidebar.php';
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-3">
-                                        <i class="fas fa-info-circle me-2"></i>No customers found
-                                    </td>
-                                </tr>
                             <?php endif; ?>
                         </tbody>
                     </table>

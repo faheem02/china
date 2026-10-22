@@ -19,7 +19,7 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
     
     // Check if product has sales
-    $sql = "SELECT COUNT(*) as count FROM sale_items WHERE product_id = ?";
+    $sql = "SELECT COUNT(*) as count FROM sale_items WHERE product_id = ? AND (product_type = 'finished_good' OR product_type IS NULL)";
     $check = getRow($sql, 'i', [$id]);
     
     if ($check && $check['count'] > 0) {
@@ -162,14 +162,9 @@ include '../includes/sidebar.php';
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="12" class="text-center text-muted py-3">
-                                        <i class="fas fa-info-circle me-2"></i>No products found
-                                    </td>
-                                </tr>
                             <?php endif; ?>
                         </tbody>
+                        <?php if (count($products) > 0): ?>
                         <tfoot class="table-primary">
                             <tr>
                                 <th colspan="5" class="text-end">Total</th>
@@ -177,6 +172,7 @@ include '../includes/sidebar.php';
                                 <th colspan="6"></th>
                             </tr>
                         </tfoot>
+                        <?php endif; ?>
                     </table>
                 </div>
             </div>

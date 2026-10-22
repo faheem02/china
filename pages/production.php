@@ -171,12 +171,6 @@ include '../includes/sidebar.php';
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="8" class="text-center text-muted py-3">
-                                        <i class="fas fa-info-circle me-2"></i>No production orders found
-                                    </td>
-                                </tr>
                             <?php endif; ?>
                         </tbody>
                     </table>

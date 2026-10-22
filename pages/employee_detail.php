@@ -71,6 +71,7 @@ include '../includes/sidebar.php';
                     <tr><th>Address</th><td><?php echo htmlspecialchars($emp['address'] ?: '-'); ?></td></tr>
                     <tr><th>City</th><td><?php echo htmlspecialchars($emp['city'] ?: '-'); ?></td></tr>
                     <tr><th>Joining Date</th><td><?php echo $joiningDate; ?></td></tr>
+                    <tr><th>Opening Balance</th><td><strong class="text-primary"><?php echo formatCurrency($emp['opening_balance']); ?></strong></td></tr>
                     <tr><th>Monthly Salary</th><td><strong><?php echo formatCurrency($emp['monthly_salary']); ?></strong></td></tr>
                     <tr>
                         <th>Status</th>

@@ -21,8 +21,13 @@ if (!$sale) { header('Location: sales.php'); exit; }
 
 $customerName = $sale['customer_type'] === 'walkin' ? $sale['walkin_name'] : ($sale['customer_name'] ?? '');
 
-$items = getRows("SELECT si.*, fg.product_code, fg.product_name, fg.unit
-    FROM sale_items si LEFT JOIN finished_goods fg ON si.product_id = fg.id
+$items = getRows("SELECT si.*, 
+    COALESCE(rm.material_code, fg.product_code) AS product_code,
+    COALESCE(rm.material_name, fg.product_name) AS product_name,
+    COALESCE(rm.unit, fg.unit) AS unit
+    FROM sale_items si 
+    LEFT JOIN finished_goods fg ON si.product_id = fg.id AND (si.product_type = 'finished_good' OR si.product_type IS NULL)
+    LEFT JOIN raw_materials rm ON si.product_id = rm.id AND si.product_type = 'raw_material'
     WHERE si.sale_id = ?", 'i', [$saleId]);
 
 $hasRefundCols = true;
@@ -77,8 +82,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 modifyData("UPDATE sale_items SET refund_qty = ?, refund_amount = ? WHERE id = ?",
                     'ddi', [$newRefundQty, ($item['refund_amount'] ?? 0) + $refundAmount, $itemId]);
 
-                modifyData("UPDATE finished_goods SET current_stock = current_stock + ? WHERE id = ?",
-                    'di', [$refundQty, $item['product_id']]);
+                if (($item['product_type'] ?? 'finished_good') === 'raw_material') {
+                    modifyData("UPDATE raw_materials SET current_stock = current_stock + ? WHERE id = ?",
+                        'di', [$refundQty, $item['product_id']]);
+                } else {
+                    modifyData("UPDATE finished_goods SET current_stock = current_stock + ? WHERE id = ?",
+                        'di', [$refundQty, $item['product_id']]);
+                }
             }
 
             if (!$hasError) {

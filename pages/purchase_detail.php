@@ -75,7 +75,7 @@ include '../includes/sidebar.php';
 </div>
 
 <div class="row">
-    <div class="col-md-6">
+    <div class="col-12">
         <div class="card shadow-sm">
             <div class="card-header" style="background:#1a2332;color:#fff;">
                 <i class="fas fa-info-circle me-2"></i>Purchase Information
@@ -97,46 +97,6 @@ include '../includes/sidebar.php';
                         <td><span class="badge badge-status badge-<?php echo strtolower($purchase['payment_status']); ?>"><?php echo ucfirst($purchase['payment_status']); ?></span></td>
                     </tr>
                 </table>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card shadow-sm">
-            <div class="card-header" style="background:#1a2332;color:#fff;">
-                <i class="fas fa-calculator me-2"></i>Payment Summary
-            </div>
-            <div class="card-body text-center">
-                <?php if ($type === 'import'): ?>
-                    <h6 class="text-muted">Grand Total (CNY)</h6>
-                    <h3 class="text-primary"><?php echo formatCurrency($purchase['grand_total_cny']); ?></h3>
-                    <h6 class="text-muted">Grand Total (PKR)</h6>
-                    <h4 class="text-secondary"><?php echo formatCurrency($purchase['grand_total_pkr']); ?></h4>
-                    <hr>
-                    <div class="row">
-                        <div class="col-6">
-                            <h6 class="text-muted">Paid (CNY)</h6>
-                            <h5 class="text-success"><?php echo formatCurrency($purchase['paid_amount_cny']); ?></h5>
-                        </div>
-                        <div class="col-6">
-                            <h6 class="text-muted">Balance (CNY)</h6>
-                            <h5 class="<?php echo $purchase['balance_cny'] > 0 ? 'text-danger' : 'text-success'; ?>"><?php echo formatCurrency($purchase['balance_cny']); ?></h5>
-                        </div>
-                    </div>
-                <?php else: ?>
-                    <h6 class="text-muted">Grand Total</h6>
-                    <h3 class="text-primary"><?php echo formatCurrency($purchase['total_amount']); ?></h3>
-                    <hr>
-                    <div class="row">
-                        <div class="col-6">
-                            <h6 class="text-muted">Paid</h6>
-                            <h5 class="text-success"><?php echo formatCurrency($purchase['paid_amount']); ?></h5>
-                        </div>
-                        <div class="col-6">
-                            <h6 class="text-muted">Balance</h6>
-                            <h5 class="<?php echo $purchase['balance'] > 0 ? 'text-danger' : 'text-success'; ?>"><?php echo formatCurrency($purchase['balance']); ?></h5>
-                        </div>
-                    </div>
-                <?php endif; ?>
             </div>
         </div>
     </div>

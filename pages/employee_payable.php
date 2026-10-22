@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_bill'])) {
         $billNo = generateCode('EPB');
         $currentDateTime = getCurrentDateTime();
         $result = insertData("INSERT INTO employee_payables (bill_no, employee_id, month_year, amount, paid_amount, balance, payment_status, description, date_time) VALUES (?, ?, ?, ?, 0, ?, 'unpaid', ?, ?)",
-            'sssddss', [$billNo, $employee_id, $monthYear, $amount, $amount, $description, $currentDateTime]);
+            'sssddss', [$billNo, $employee_id, $month_year, $amount, $amount, $description, $currentDateTime]);
 
         if ($result) {
             setFlash('Bill ' . $billNo . ' created successfully!', 'success');

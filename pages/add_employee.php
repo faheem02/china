@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             $sql = "INSERT INTO employees (employee_code, employee_name, father_name, cnic, phone, email, address, city, designation, department, joining_date, monthly_salary, opening_balance, current_balance, status, date_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-            $result = insertData($sql, 'ssssssssssssdds', [$employee_code, $employee_name, $father_name, $cnic, $phone, $email, $address, $city, $designation, $department, $joining_date, $monthly_salary, $opening_balance, $opening_balance, $status, getCurrentDateTime()]);
+            $result = insertData($sql, 'sssssssssssdddss', [$employee_code, $employee_name, $father_name, $cnic, $phone, $email, $address, $city, $designation, $department, $joining_date, $monthly_salary, $opening_balance, $opening_balance, $status, getCurrentDateTime()]);
         }
 
         if ($result !== false) {

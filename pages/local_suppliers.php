@@ -108,9 +108,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Insert
             $sql = "INSERT INTO local_suppliers (
                     supplier_name, company_name, phone, email, 
-                    address, city, country, cnic, ntn, opening_balance, opening_balance_type,
+                    address, city, country, cnic, ntn, opening_balance, current_balance, opening_balance_type,
                     status, date_time
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             
             $params = [
                 $supplier_name, 
@@ -123,12 +123,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $cnic,
                 $ntn,
                 $opening_balance,
+                $opening_balance,
                 $opening_balance_type,
                 $status,
                 $currentDateTime
             ];
             
-            $result = insertData($sql, 'ssssssssdsss', $params);
+            $result = insertData($sql, 'sssssssssddsss', $params);
             
             if ($result !== false) {
                 setFlash('Supplier added successfully!', 'success');
@@ -196,7 +197,12 @@ include '../includes/sidebar.php';
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span><i class="fas fa-list me-2"></i>Local Suppliers List</span>
-                <a href="../index.php" class="btn btn-light btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+                <div class="d-flex gap-2">
+                    <a href="local_suppliers_print.php" target="_blank" class="btn btn-danger btn-sm">
+                        <i class="fas fa-print me-1"></i>Print
+                    </a>
+                    <a href="../index.php" class="btn btn-light btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+                </div>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -247,6 +253,9 @@ include '../includes/sidebar.php';
                                                 <a href="supplier_ledger.php?id=<?php echo $supplier['id']; ?>" class="btn btn-primary" title="View Ledger">
                                                     <i class="fas fa-book"></i>
                                                 </a>
+                                                <a href="supplier_ledger_print.php?id=<?php echo $supplier['id']; ?>" target="_blank" class="btn btn-success" title="Print Ledger">
+                                                    <i class="fas fa-print"></i>
+                                                </a>
                                                 <a href="?edit=<?php echo $supplier['id']; ?>" class="btn btn-warning" title="Edit">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
@@ -257,12 +266,6 @@ include '../includes/sidebar.php';
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="9" class="text-center text-muted py-3">
-                                        <i class="fas fa-info-circle me-2"></i>No local suppliers found
-                                    </td>
-                                </tr>
                             <?php endif; ?>
                         </tbody>
                     </table>

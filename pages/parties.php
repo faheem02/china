@@ -145,7 +145,7 @@ include '../includes/sidebar.php';
                                     <td><span class="badge badge-status badge-<?php echo $pt['status']; ?>"><?php echo ucfirst($pt['status']); ?></span></td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
-                                            <a href="party_detail.php?id=<?php echo $pt['id']; ?>" class="btn btn-info" title="Ledger"><i class="fas fa-book"></i></a>
+                                            <a href="general_party_ledger.php?id=<?php echo $pt['id']; ?>" class="btn btn-info" title="Ledger"><i class="fas fa-book"></i></a>
                                             <a href="add_party.php?edit=<?php echo $pt['id']; ?>" class="btn btn-primary" title="Edit"><i class="fas fa-edit"></i></a>
                                             <a href="?delete=<?php echo $pt['id']; ?>" class="btn btn-danger delete-confirm" title="Delete"><i class="fas fa-trash"></i></a>
                                         </div>

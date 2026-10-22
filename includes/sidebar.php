@@ -10,16 +10,17 @@ $r = $isInPages ? '../' : '';
 // $reports, $party, $production — pages query data into those variables BEFORE including sidebar.
 $localPurchases = ['add_local_purchase.php', 'local_purchases.php'];
 $importPurchases = ['add_import_purchase.php', 'import_purchases.php'];
-$supplierPages = ['local_suppliers.php', 'suppliers_summary.php', 'supplier_payments.php', 'supplier_detail.php', 'supplier_ledger.php', 'chinese_suppliers.php', 'chinese_suppliers_summary.php', 'chinese_supplier_payment.php', 'chinese_supplier_ledger.php'];
-$finishedGoods = ['finished_goods.php', 'add_finished_goods.php', 'products.php', 'add_product.php', 'finished_goods_receiving.php'];
-$issuancePages = ['material_issue.php', 'raw_materials.php', 'add_raw_materials.php'];
-$salesPages = ['new_sale.php', 'sales.php', 'view_hold_bills.php', 'sale_print.php'];
-$customerPages = ['add_customer.php', 'customers.php', 'customer_receiving.php', 'customer_ledger.php'];
-$partyPages = ['add_party.php', 'parties.php', 'add_party_payable.php', 'add_party_received.php', 'add_party_paid.php'];
-$employeePages = ['add_employee.php', 'employees.php', 'employee_payable.php', 'employee_paid.php'];
-$expensePages = ['expense_heads.php', 'expenses.php'];
-$accountPages = ['accounts.php', 'cashbook.php', 'bankbook.php', 'balance_sheet.php', 'company_settings.php'];
-$reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports_cashflow.php', 'reports_purchases.php', 'reports_sales.php', 'reports_inventory.php', 'reports_expenses.php', 'reports_suppliers.php', 'reports_customers.php', 'reports_parties.php', 'reports_employees.php', 'all_customers_closing.php', 'all_suppliers_closing.php', 'all_parties_closing.php'];
+$supplierPages = ['local_suppliers.php', 'suppliers_summary.php', 'supplier_payments.php', 'supplier_detail.php', 'supplier_ledger.php', 'supplier_ledger_print.php', 'local_suppliers_print.php', 'chinese_suppliers.php', 'chinese_suppliers_summary.php', 'chinese_supplier_payment.php', 'chinese_supplier_ledger.php', 'chinese_supplier_ledger_print.php', 'chinese_suppliers_print.php'];
+$finishedGoodsPages = ['finished_goods.php', 'add_finished_goods.php', 'products.php', 'add_product.php', 'finished_goods_receiving.php', 'finished_goods_print.php'];
+$issuancePages = ['material_issue.php', 'raw_materials.php', 'add_raw_materials.php', 'raw_materials_print.php'];
+$salesPages = ['new_sale.php', 'sales.php', 'view_hold_bills.php', 'sale_print.php', 'new_quotation.php', 'quotations.php', 'quotation_print.php'];
+$customerPages = ['add_customer.php', 'customers.php', 'customer_receiving.php', 'customer_ledger.php', 'customer_party_ledger.php', 'customer_ledger_print.php', 'customers_print.php'];
+$partyPages = ['add_party.php', 'parties.php', 'add_party_payable.php', 'add_party_received.php', 'add_party_paid.php', 'party_detail.php', 'general_party_ledger.php'];
+$employeePages = ['add_employee.php', 'employees.php', 'employee_ledger.php', 'employee_payable.php', 'employee_paid.php'];
+$expensePages = ['add_expense_head.php', 'add_expense.php', 'expenses.php', 'expense_heads.php', 'reports_expenses.php', 'reports_expenses_print.php'];
+$accountPages = ['cashbook.php', 'bankbook.php', 'cashbook_print.php', 'bankbook_print.php'];
+$productionPages = ['add_production.php', 'view_production.php', 'production.php'];
+$reportPages = ['reports_inventory.php', 'closing_report.php', 'reports_item_sales.php', 'all_customers_closing.php', 'all_suppliers_closing.php', 'all_parties_closing.php'];
 ?>
 <!-- Sidebar -->
 <nav id="sidebar">
@@ -82,17 +83,17 @@ $reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports
             </div>
         </div>
         
-        <div class="nav-item <?php echo in_array($page, $finishedGoods) ? 'active' : ''; ?>">
+        <div class="nav-item <?php echo in_array($page, $finishedGoodsPages) ? 'active' : ''; ?>">
             <a href="#" data-bs-toggle="collapse" data-bs-target="#finishedGoodsSubmenu">
                 <i class="fas fa-boxes"></i> Finished Goods
                 <i class="fas fa-chevron-down ms-auto"></i>
             </a>
-            <div class="collapse <?php echo in_array($page, $finishedGoods) ? 'show' : ''; ?>" id="finishedGoodsSubmenu" data-bs-parent=".sidebar-nav">
+            <div class="collapse <?php echo in_array($page, $finishedGoodsPages) ? 'show' : ''; ?>" id="finishedGoodsSubmenu" data-bs-parent=".sidebar-nav">
                 <div class="sub-menu">
                     <a href="<?php echo $p; ?>add_finished_goods.php"><i class="fas fa-angle-right me-2"></i>Add Finished Good</a>
                     <a href="<?php echo $p; ?>finished_goods.php"><i class="fas fa-angle-right me-2"></i>View Finished Goods</a>
                     <div class="sub-group-label mt-2">Stock</div>
-                    <a href="<?php echo $p; ?>finished_goods_receiving.php"><i class="fas fa-angle-right me-2"></i>Receiving</a>
+                    <a href="<?php echo $p; ?>finished_goods_receiving.php"><i class="fas fa-angle-right me-2"></i>Goods Receiving</a>
                 </div>
             </div>
         </div>
@@ -105,10 +106,24 @@ $reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports
             </a>
             <div class="collapse <?php echo in_array($page, $issuancePages) ? 'show' : ''; ?>" id="issuanceSubmenu" data-bs-parent=".sidebar-nav">
                 <div class="sub-menu">
-                    <a href="<?php echo $p; ?>material_issue.php"><i class="fas fa-angle-right me-2"></i>New Issuance</a>
+                    <a href="<?php echo $p; ?>material_issue.php"><i class="fas fa-angle-right me-2"></i>Material Issuance</a>
                     <div class="sub-group-label mt-2">Raw Materials</div>
                     <a href="<?php echo $p; ?>add_raw_materials.php"><i class="fas fa-angle-right me-2"></i>Add Raw Material</a>
                     <a href="<?php echo $p; ?>raw_materials.php"><i class="fas fa-angle-right me-2"></i>View Raw Materials</a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Production -->
+        <div class="nav-item <?php echo in_array($page, $productionPages) ? 'active' : ''; ?>">
+            <a href="#" data-bs-toggle="collapse" data-bs-target="#productionSubmenu">
+                <i class="fas fa-industry"></i> Production
+                <i class="fas fa-chevron-down ms-auto"></i>
+            </a>
+            <div class="collapse <?php echo in_array($page, $productionPages) ? 'show' : ''; ?>" id="productionSubmenu" data-bs-parent=".sidebar-nav">
+                <div class="sub-menu">
+                    <a href="<?php echo $p; ?>add_production.php"><i class="fas fa-angle-right me-2"></i>Add Production Order</a>
+                    <a href="<?php echo $p; ?>view_production.php"><i class="fas fa-angle-right me-2"></i>View Production</a>
                 </div>
             </div>
         </div>
@@ -125,6 +140,9 @@ $reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports
                     <a href="<?php echo $p; ?>new_sale.php"><i class="fas fa-angle-right me-2"></i>New Sale</a>
                     <a href="<?php echo $p; ?>sales.php"><i class="fas fa-angle-right me-2"></i>View Sale Invoice</a>
                     <a href="<?php echo $p; ?>view_hold_bills.php"><i class="fas fa-angle-right me-2"></i>View Hold Bills</a>
+                    <div class="sub-group-label mt-2">Quotations</div>
+                    <a href="<?php echo $p; ?>new_quotation.php"><i class="fas fa-angle-right me-2"></i>New Quotation</a>
+                    <a href="<?php echo $p; ?>quotations.php"><i class="fas fa-angle-right me-2"></i>View Quotations</a>
                 </div>
             </div>
         </div>
@@ -140,6 +158,7 @@ $reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports
                     <a href="<?php echo $p; ?>add_customer.php"><i class="fas fa-angle-right me-2"></i>Add Customer</a>
                     <a href="<?php echo $p; ?>customers.php"><i class="fas fa-angle-right me-2"></i>View Customer</a>
                     <a href="<?php echo $p; ?>customer_receiving.php"><i class="fas fa-angle-right me-2"></i>Customer Receiving</a>
+                    <a href="<?php echo $p; ?>customer_party_ledger.php"><i class="fas fa-angle-right me-2"></i>Customer Party Ledger</a>
                 </div>
             </div>
         </div>
@@ -157,6 +176,7 @@ $reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports
                     <a href="<?php echo $p; ?>add_party_payable.php"><i class="fas fa-angle-right me-2"></i>Add Payable</a>
                     <a href="<?php echo $p; ?>add_party_received.php"><i class="fas fa-angle-right me-2"></i>Receive from Party</a>
                     <a href="<?php echo $p; ?>add_party_paid.php"><i class="fas fa-angle-right me-2"></i>Pay to Party</a>
+                    <a href="<?php echo $p; ?>general_party_ledger.php"><i class="fas fa-angle-right me-2"></i>General Party Ledger</a>
                 </div>
             </div>
         </div>
@@ -171,6 +191,7 @@ $reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports
                 <div class="sub-menu">
                     <a href="<?php echo $p; ?>add_employee.php"><i class="fas fa-angle-right me-2"></i>Add Employee</a>
                     <a href="<?php echo $p; ?>employees.php"><i class="fas fa-angle-right me-2"></i>View Employees</a>
+                    <a href="<?php echo $p; ?>employee_ledger.php"><i class="fas fa-angle-right me-2"></i>Salary Ledger</a>
                     <a href="<?php echo $p; ?>employee_payable.php"><i class="fas fa-angle-right me-2"></i>Employee Payable</a>
                     <a href="<?php echo $p; ?>employee_paid.php"><i class="fas fa-angle-right me-2"></i>Employee Paid</a>
                 </div>
@@ -185,8 +206,9 @@ $reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports
             </a>
             <div class="collapse <?php echo in_array($page, $expensePages) ? 'show' : ''; ?>" id="expenseSubmenu" data-bs-parent=".sidebar-nav">
                 <div class="sub-menu">
-                    <a href="<?php echo $p; ?>expense_heads.php"><i class="fas fa-angle-right me-2"></i>Expense Heads</a>
+                    <a href="<?php echo $p; ?>add_expense_head.php"><i class="fas fa-angle-right me-2"></i>Add Expense</a>
                     <a href="<?php echo $p; ?>expenses.php"><i class="fas fa-angle-right me-2"></i>All Expenses</a>
+                    <a href="<?php echo $p; ?>expense_heads.php"><i class="fas fa-angle-right me-2"></i>Expense Categories</a>
                 </div>
             </div>
         </div>
@@ -194,17 +216,13 @@ $reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports
         <!-- Accounts -->
         <div class="nav-item <?php echo in_array($page, $accountPages) ? 'active' : ''; ?>">
             <a href="#" data-bs-toggle="collapse" data-bs-target="#accountsSubmenu">
-                <i class="fas fa-book"></i> Accounts
+                <i class="fas fa-book"></i> Cash &amp; Bank Book
                 <i class="fas fa-chevron-down ms-auto"></i>
             </a>
             <div class="collapse <?php echo in_array($page, $accountPages) ? 'show' : ''; ?>" id="accountsSubmenu" data-bs-parent=".sidebar-nav">
                 <div class="sub-menu">
-                    <a href="<?php echo $p; ?>accounts.php"><i class="fas fa-angle-right me-2"></i>Ledger</a>
                     <a href="<?php echo $p; ?>cashbook.php"><i class="fas fa-angle-right me-2"></i>Cash Book</a>
                     <a href="<?php echo $p; ?>bankbook.php"><i class="fas fa-angle-right me-2"></i>Bank Book</a>
-                    <a href="<?php echo $p; ?>balance_sheet.php"><i class="fas fa-angle-right me-2"></i>Balance Sheet</a>
-                    <div class="sub-group-label mt-2">Setup</div>
-                    <a href="<?php echo $p; ?>company_settings.php"><i class="fas fa-angle-right me-2"></i>Company Settings</a>
                 </div>
             </div>
         </div>
@@ -217,30 +235,9 @@ $reportPages = ['reports_profit_loss.php', 'reports_trial_balance.php', 'reports
             </a>
             <div class="collapse <?php echo in_array($page, $reportPages) ? 'show' : ''; ?>" id="reportsSubmenu" data-bs-parent=".sidebar-nav">
                 <div class="sub-menu">
-                    <div class="sub-group-label">Financial</div>
-                    <a href="<?php echo $p; ?>reports_profit_loss.php"><i class="fas fa-angle-right me-2"></i>Profit & Loss</a>
-                    <a href="<?php echo $p; ?>reports_trial_balance.php"><i class="fas fa-angle-right me-2"></i>Trial Balance</a>
-                    <a href="<?php echo $p; ?>reports_cashflow.php"><i class="fas fa-angle-right me-2"></i>Cash Flow</a>
-                    <div class="sub-group-label mt-2">Business</div>
-                    <a href="<?php echo $p; ?>reports_purchases.php"><i class="fas fa-angle-right me-2"></i>Purchase Reports</a>
-                    <a href="<?php echo $p; ?>reports_sales.php"><i class="fas fa-angle-right me-2"></i>Sales Reports</a>
-                    <a href="<?php echo $p; ?>reports_inventory.php"><i class="fas fa-angle-right me-2"></i>Inventory Reports</a>
-                    <a href="<?php echo $p; ?>reports_expenses.php"><i class="fas fa-angle-right me-2"></i>Expense Reports</a>
-                    <div class="sub-group-label mt-2">Parties & People</div>
-                    <a href="<?php echo $p; ?>reports_suppliers.php"><i class="fas fa-angle-right me-2"></i>Supplier Reports</a>
-                    <a href="<?php echo $p; ?>reports_customers.php"><i class="fas fa-angle-right me-2"></i>Customer Reports</a>
-                    <a href="<?php echo $p; ?>reports_parties.php"><i class="fas fa-angle-right me-2"></i>Party Ledger Reports</a>
-                    <a href="<?php echo $p; ?>reports_employees.php"><i class="fas fa-angle-right me-2"></i>Employee Reports</a>
-                    <div class="sub-group-label mt-2">Closing Balances</div>
-                    <a href="<?php echo $p; ?>all_customers_closing.php"><i class="fas fa-angle-right me-2"></i>All Customers Closing</a>
-                    <a href="<?php echo $p; ?>all_suppliers_closing.php"><i class="fas fa-angle-right me-2"></i>All Suppliers Closing</a>
-                    <a href="<?php echo $p; ?>all_parties_closing.php"><i class="fas fa-angle-right me-2"></i>All Parties Closing</a>
-                    <div class="sub-group-label mt-2">Ledgers</div>
-                    <a href="<?php echo $p; ?>customer_ledger.php"><i class="fas fa-angle-right me-2"></i>Customer Ledger</a>
-                    <a href="<?php echo $p; ?>supplier_ledger.php"><i class="fas fa-angle-right me-2"></i>Local Supplier Ledger</a>
-                    <a href="<?php echo $p; ?>chinese_supplier_ledger.php"><i class="fas fa-angle-right me-2"></i>Chinese Supplier Ledger</a>
-                    <a href="<?php echo $p; ?>suppliers_summary.php"><i class="fas fa-angle-right me-2"></i>Local Supplier Summary</a>
-                    <a href="<?php echo $p; ?>chinese_suppliers_summary.php"><i class="fas fa-angle-right me-2"></i>Chinese Supplier Summary</a>
+                    <a href="<?php echo $p; ?>reports_inventory.php"><i class="fas fa-angle-right me-2"></i>Stock Report</a>
+                    <a href="<?php echo $p; ?>closing_report.php"><i class="fas fa-angle-right me-2"></i>Closing Report</a>
+                    <a href="<?php echo $p; ?>reports_item_sales.php"><i class="fas fa-angle-right me-2"></i>Item Wise Sale Report</a>
                 </div>
             </div>
         </div>

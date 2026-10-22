@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($result !== false) {
             modifyData("UPDATE parties SET current_balance = current_balance + ? WHERE id = ?", 'di', [$amount, $party_id]);
             setFlash('Payable of ' . formatCurrency($amount) . ' added successfully!', 'success');
-            header('Location: party_detail.php?id=' . $party_id);
+            header('Location: general_party_ledger.php?id=' . $party_id);
             exit;
         } else {
             $message = 'Error adding payable!';

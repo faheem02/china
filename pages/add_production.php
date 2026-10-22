@@ -12,7 +12,7 @@ if ($flash) {
     $messageType = $flash['type'];
 }
 
-$finishedGoods = getRows("SELECT id, product_code, product_name, unit, current_stock FROM finished_goods WHERE status = 'active' ORDER BY product_name");
+$finishedGoodsList = getRows("SELECT id, product_code, product_name, unit, current_stock FROM finished_goods WHERE status = 'active' ORDER BY product_name");
 $rawMaterials = getRows("SELECT id, material_code, material_name, unit, purchase_price_pkr, current_stock FROM raw_materials WHERE status = 'active' ORDER BY material_name");
 
 foreach ($rawMaterials as &$m) {
@@ -189,7 +189,7 @@ include '../includes/sidebar.php';
                             <label for="finished_good_id" class="form-label">Finished Good *</label>
                             <select class="form-select" id="finished_good_id" name="finished_good_id" required>
                                 <option value="">Select Product</option>
-                                <?php foreach ($finishedGoods as $fg): ?>
+                                <?php foreach ($finishedGoodsList as $fg): ?>
                                     <option value="<?php echo $fg['id']; ?>"
                                         <?php echo ($editOrder && $editOrder['finished_good_id'] == $fg['id']) ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($fg['product_code'] . ' - ' . $fg['product_name']); ?> (Stock: <?php echo number_format($fg['current_stock'], 2); ?>)

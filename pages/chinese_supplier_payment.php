@@ -30,10 +30,13 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
     
     // Get payment details before deleting
-    $sql = "SELECT supplier_id, amount_cny, amount_pkr FROM chinese_supplier_payments WHERE id = ?";
+    $sql = "SELECT supplier_id, amount_cny, amount_pkr, payment_type, bank_id FROM chinese_supplier_payments WHERE id = ?";
     $payment = getRow($sql, 'i', [$id]);
     
     if ($payment) {
+        if ($payment['payment_type'] === 'bank' && !empty($payment['bank_id'])) {
+            updateBankBalance($payment['bank_id'], $payment['amount_pkr'], 'in');
+        }
         // Restore Chinese supplier current balance
         modifyData("UPDATE chinese_suppliers SET current_balance = current_balance + ? WHERE id = ?", 'di', [$payment['amount_cny'], $payment['supplier_id']]);
         // Delete from accounts first
@@ -64,6 +67,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $reference_no = trim($_POST['reference_no']);
     $notes = trim($_POST['notes']);
     $status = $_POST['status'];
+    $bank_id = ($payment_type === 'bank') ? (int)($_POST['bank_id'] ?? 0) : null;
+    $bank_name = null;
+    if ($bank_id > 0) {
+        $bRow = getRow("SELECT bank_name, account_number FROM bank_accounts WHERE id = ?", 'i', [$bank_id]);
+        if ($bRow) {
+            $bank_name = $bRow['bank_name'] . ' (' . $bRow['account_number'] . ')';
+        }
+    }
     
     // Calculate PKR amount
     $amount_pkr = $amount_cny * $exchange_rate;
@@ -86,9 +97,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $payment_no = generateCode('CPAY');
         
         if ($id > 0) {
-            // Get old payment amount
-            $sql = "SELECT supplier_id, amount_cny FROM chinese_supplier_payments WHERE id = ?";
+            // Get old payment details
+            $sql = "SELECT supplier_id, amount_cny, amount_pkr, payment_type, bank_id FROM chinese_supplier_payments WHERE id = ?";
             $oldPayment = getRow($sql, 'i', [$id]);
+            if ($oldPayment) {
+                if ($oldPayment['payment_type'] === 'bank' && !empty($oldPayment['bank_id'])) {
+                    updateBankBalance($oldPayment['bank_id'], $oldPayment['amount_pkr'], 'in');
+                }
+                modifyData("UPDATE chinese_suppliers SET current_balance = current_balance + ? WHERE id = ?", 'di', [(float)$oldPayment['amount_cny'], (int)$oldPayment['supplier_id']]);
+                modifyData("DELETE FROM accounts WHERE reference_type = 'Chinese Payment' AND reference_id = ?", 'i', [$id]);
+            }
             
             // Update
             $sql = "UPDATE chinese_supplier_payments SET 
@@ -98,6 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     amount_pkr = ?,
                     exchange_rate = ?,
                     payment_type = ?,
+                    bank_id = ?,
+                    bank_name = ?,
                     reference_no = ?,
                     notes = ?,
                     status = ?,
@@ -111,6 +131,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $amount_pkr,
                 $exchange_rate,
                 $payment_type,
+                $bank_id,
+                $bank_name,
                 $reference_no,
                 $notes,
                 $status,
@@ -118,9 +140,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $id
             ];
             
-            $result = modifyData($sql, 'isddsdssssi', $params);
+            $result = modifyData($sql, 'isddssisssssi', $params);
             
             if ($result !== false) {
+                if ($payment_type === 'bank' && $bank_id > 0) {
+                    updateBankBalance($bank_id, $amount_pkr, 'out');
+                }
+
+                // Re-insert into accounts ledger
+                $accType = ($payment_type === 'cash') ? 'Cash' : 'Bank';
+                $lastEntry = getRow("SELECT balance FROM accounts WHERE account_type = ? ORDER BY id DESC LIMIT 1", 's', [$accType]);
+                $lastBalance = $lastEntry ? (float)$lastEntry['balance'] : 0;
+                $supplierRow = getRow("SELECT supplier_name FROM chinese_suppliers WHERE id = ?", 'i', [$supplier_id]);
+                $supplierName = $supplierRow ? $supplierRow['supplier_name'] : 'Chinese Supplier';
+                $desc = 'Payment to Chinese supplier - ' . $supplierName . ' (CNY ' . number_format($amount_cny, 2) . ' @ ' . number_format($exchange_rate, 4) . ') [Updated]' . ($bank_name ? " [$bank_name]" : "");
+                insertData(
+                    "INSERT INTO accounts (account_date, account_type, reference_type, reference_id, description, debit, credit, balance, date_time) VALUES (?, ?, 'Chinese Payment', ?, ?, 0, ?, ?, ?)",
+                    'ssisdds', [$payment_date, $accType, $id, $desc, $amount_pkr, $lastBalance - $amount_pkr, $currentDateTime]
+                );
+
+                // Update Chinese supplier current balance (in CNY)
+                modifyData("UPDATE chinese_suppliers SET current_balance = current_balance - ? WHERE id = ?", 'di', [$amount_cny, $supplier_id]);
+
                 setFlash('Payment updated successfully!', 'success');
                 header('Location: ' . $_SERVER['PHP_SELF']);
                 exit;
@@ -132,9 +173,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Insert
             $sql = "INSERT INTO chinese_supplier_payments (
                     payment_no, supplier_id, payment_date, amount_cny, amount_pkr,
-                    exchange_rate, payment_type, reference_no,
+                    exchange_rate, payment_type, bank_id, bank_name, reference_no,
                     notes, status, date_time
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             
             $params = [
                 $payment_no,
@@ -144,25 +185,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $amount_pkr,
                 $exchange_rate,
                 $payment_type,
+                $bank_id,
+                $bank_name,
                 $reference_no,
                 $notes,
                 $status,
                 $currentDateTime
             ];
             
-            $result = insertData($sql, 'sisdddsssss', $params);
+            $result = insertData($sql, 'sisdddssissss', $params);
             
             if ($result) {
+                if ($payment_type === 'bank' && $bank_id > 0) {
+                    updateBankBalance($bank_id, $amount_pkr, 'out');
+                }
+
                 // Insert into accounts ledger
                 $accType = ($payment_type === 'cash') ? 'Cash' : 'Bank';
                 $lastEntry = getRow("SELECT balance FROM accounts WHERE account_type = ? ORDER BY id DESC LIMIT 1", 's', [$accType]);
                 $lastBalance = $lastEntry ? (float)$lastEntry['balance'] : 0;
                 $supplierRow = getRow("SELECT supplier_name FROM chinese_suppliers WHERE id = ?", 'i', [$supplier_id]);
                 $supplierName = $supplierRow ? $supplierRow['supplier_name'] : 'Chinese Supplier';
-                $desc = 'Payment to Chinese supplier - ' . $supplierName . ' (CNY ' . number_format($amount_cny, 2) . ' @ ' . number_format($exchange_rate, 4) . ') [' . $payment_no . ']';
+                $desc = 'Payment to Chinese supplier - ' . $supplierName . ' (CNY ' . number_format($amount_cny, 2) . ' @ ' . number_format($exchange_rate, 4) . ') [' . $payment_no . ']' . ($bank_name ? " [$bank_name]" : "");
                 insertData(
-                    "INSERT INTO accounts (account_date, account_type, reference_type, reference_id, description, debit, credit, balance, date_time) VALUES (?, ?, 'Chinese Payment', ?, ?, ?, 0, ?, ?)",
-                    'ssisdds', [$payment_date, $accType, $result, $desc, $amount_pkr, $lastBalance + $amount_pkr, $currentDateTime]
+                    "INSERT INTO accounts (account_date, account_type, reference_type, reference_id, description, debit, credit, balance, date_time) VALUES (?, ?, 'Chinese Payment', ?, ?, 0, ?, ?, ?)",
+                    'ssisdds', [$payment_date, $accType, $result, $desc, $amount_pkr, $lastBalance - $amount_pkr, $currentDateTime]
                 );
 
                 // Update Chinese supplier current balance (in CNY)
@@ -178,6 +225,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+$bankAccounts = getActiveBankAccounts();
 
 // Get all payments with supplier details
 $sql = "SELECT p.*, s.supplier_name, s.company_name, c.currency_code, c.symbol 
@@ -279,7 +328,15 @@ include '../includes/sidebar.php';
                                         <td class="text-nowrap text-success fw-bold">¥ <?php echo number_format($payment['amount_cny'], 2); ?></td>
                                         <td class="text-nowrap">PKR <?php echo number_format($payment['amount_pkr'], 2); ?></td>
                                         <td class="text-nowrap"><?php echo number_format($payment['exchange_rate'], 4); ?></td>
-                                        <td><span class="badge bg-secondary"><?php echo ucfirst(str_replace('_', ' ', $payment['payment_type'])); ?></span></td>
+                                        <td>
+                                            <?php if ($payment['payment_type'] === 'bank'): ?>
+                                                <span class="badge bg-info text-dark">
+                                                    <i class="fas fa-university me-1"></i>Bank<?php echo !empty($payment['bank_name']) ? ': ' . htmlspecialchars($payment['bank_name']) : ''; ?>
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="badge bg-secondary">Cash</span>
+                                            <?php endif; ?>
+                                        </td>
                                         <td>
                                             <div class="d-inline-flex gap-1">
                                                 <a href="?edit=<?php echo $payment['id']; ?>" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#paymentModal" title="Edit">
@@ -386,6 +443,18 @@ include '../includes/sidebar.php';
                                 <option value="bank" <?php echo ($editPayment && $editPayment['payment_type'] == 'bank') ? 'selected' : ''; ?>>Bank</option>
                             </select>
                         </div>
+
+                        <div class="col-md-6 mb-3" id="bankSelectGroup" style="<?php echo ($editPayment && $editPayment['payment_type'] == 'bank') ? '' : 'display:none;'; ?>">
+                            <label for="bank_id" class="form-label fw-bold"><i class="fas fa-university me-1"></i>Select Bank *</label>
+                            <select class="form-select" id="bank_id" name="bank_id">
+                                <option value="">-- Choose Bank Account --</option>
+                                <?php foreach ($bankAccounts as $ba): ?>
+                                    <option value="<?php echo $ba['id']; ?>" <?php echo ($editPayment && ($editPayment['bank_id'] ?? 0) == $ba['id']) ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($ba['bank_name'] . ' (' . $ba['account_number'] . ')'); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
                         
                         <div class="col-md-6 mb-3">
                             <label for="reference_no" class="form-label">Reference No</label>
@@ -453,9 +522,28 @@ $(document).ready(function() {
             $('#amount_cny').attr('placeholder', 'Max: ' + symbol + ' ' + parseFloat(balance).toFixed(2));
         }
     });
+
+    $('#payment_type').on('change', function() {
+        if ($(this).val() === 'bank') {
+            $('#bankSelectGroup').show();
+            $('#bank_id').prop('required', true);
+        } else {
+            $('#bankSelectGroup').hide();
+            $('#bank_id').prop('required', false);
+        }
+    });
+
+    $('#paymentModal').on('hidden.bs.modal', function() {
+        $('#bankSelectGroup').hide();
+        $('#bank_id').prop('required', false);
+    });
     
     <?php if (isset($_GET['edit']) && $editPayment): ?>
         $('#paymentModal').modal('show');
+        if ($('#payment_type').val() === 'bank') {
+            $('#bankSelectGroup').show();
+            $('#bank_id').prop('required', true);
+        }
     <?php endif; ?>
 });
 

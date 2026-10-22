@@ -16,8 +16,12 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
     $receipt = getRow("SELECT id FROM customer_receipts WHERE id = ?", 'i', [$id]);
     if ($receipt) {
-        $r = getRow("SELECT customer_id, sale_id, amount FROM customer_receipts WHERE id = ?", 'i', [$id]);
+        $r = getRow("SELECT customer_id, sale_id, amount, payment_method, bank_id FROM customer_receipts WHERE id = ?", 'i', [$id]);
         if ($r) {
+            // Restore bank balance if was paid via bank
+            if ($r['payment_method'] === 'bank' && !empty($r['bank_id'])) {
+                updateBankBalance($r['bank_id'], $r['amount'], 'out');
+            }
             // Restore customer current balance
             modifyData("UPDATE customers SET current_balance = current_balance + ? WHERE id = ?", 'di', [$r['amount'], $r['customer_id']]);
             $sale = getRow("SELECT paid_amount, total_amount, discount FROM sales WHERE id = ?", 'i', [$r['sale_id']]);
@@ -42,6 +46,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_id'])) {
     $editAmount = (float)($_POST['edit_amount'] ?? 0);
     $editMethod = $_POST['edit_method'] ?? '';
     $editNotes = trim($_POST['edit_notes'] ?? '');
+    $editBankId = ($editMethod === 'bank') ? (int)($_POST['edit_bank_id'] ?? 0) : null;
+    $editBankName = null;
+    if ($editBankId > 0) {
+        $bRow = getRow("SELECT bank_name, account_number FROM bank_accounts WHERE id = ?", 'i', [$editBankId]);
+        if ($bRow) {
+            $editBankName = $bRow['bank_name'] . ' (' . $bRow['account_number'] . ')';
+        }
+    }
 
     $old = getRow("SELECT * FROM customer_receipts WHERE id = ?", 'i', [$editId]);
     if (!$old) {
@@ -56,8 +68,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_id'])) {
         exit;
     }
 
-    modifyData("UPDATE customer_receipts SET customer_id = ?, amount = ?, payment_method = ?, payment_date = ?, notes = ? WHERE id = ?",
-        'isdssi', [$editCustomerId, $editAmount, $editMethod, $editDate, $editNotes, $editId]);
+    // Revert old bank balance
+    if ($old['payment_method'] === 'bank' && !empty($old['bank_id'])) {
+        updateBankBalance($old['bank_id'], $old['amount'], 'out');
+    }
+    // Apply new bank balance
+    if ($editMethod === 'bank' && $editBankId > 0) {
+        updateBankBalance($editBankId, $editAmount, 'in');
+    }
+
+    modifyData("UPDATE customer_receipts SET customer_id = ?, amount = ?, payment_method = ?, bank_id = ?, bank_name = ?, payment_date = ?, notes = ? WHERE id = ?",
+        'idsisssi', [$editCustomerId, $editAmount, $editMethod, $editBankId, $editBankName, $editDate, $editNotes, $editId]);
+
+    // Adjust customer balance
+    modifyData("UPDATE customers SET current_balance = current_balance + ? WHERE id = ?", 'di', [(float)$old['amount'], (int)$old['customer_id']]);
+    modifyData("UPDATE customers SET current_balance = current_balance - ? WHERE id = ?", 'di', [$editAmount, $editCustomerId]);
 
     setFlash('Payment updated successfully!', 'success');
     header('Location: ' . $_SERVER['PHP_SELF']);
@@ -70,6 +95,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['customer_id'])) {
     $amount = (float)($_POST['amount'] ?? 0);
     $payment_type = $_POST['payment_type'] ?? '';
     $notes = trim($_POST['notes'] ?? '');
+    $bank_id = ($payment_type === 'bank') ? (int)($_POST['bank_id'] ?? 0) : null;
+    $bank_name = null;
+    if ($bank_id > 0) {
+        $bRow = getRow("SELECT bank_name, account_number FROM bank_accounts WHERE id = ?", 'i', [$bank_id]);
+        if ($bRow) {
+            $bank_name = $bRow['bank_name'] . ' (' . $bRow['account_number'] . ')';
+        }
+    }
 
     if (empty($customer_id)) {
         $message = 'Please select a customer!';
@@ -84,8 +117,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['customer_id'])) {
         $currentDateTime = getCurrentDateTime();
         $receiptNo = generateCode('RCT');
 
-        $result = insertData("INSERT INTO customer_receipts (customer_id, receipt_no, amount, payment_method, payment_date, notes, date_time) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            'isdssss', [$customer_id, $receiptNo, $amount, $payment_type, $payment_date, $notes, $currentDateTime]);
+        $result = insertData("INSERT INTO customer_receipts (customer_id, receipt_no, amount, payment_method, bank_id, bank_name, payment_date, notes, date_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            'isdsissss', [$customer_id, $receiptNo, $amount, $payment_type, $bank_id, $bank_name, $payment_date, $notes, $currentDateTime]);
 
         if ($result) {
             $customerRow = getRow("SELECT customer_name FROM customers WHERE id = ?", 'i', [$customer_id]);
@@ -95,15 +128,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['customer_id'])) {
                 $lastEntry = getRow("SELECT balance FROM accounts WHERE account_type = 'Cash' ORDER BY id DESC LIMIT 1");
                 $lastBalance = $lastEntry ? (float)$lastEntry['balance'] : 0;
                 insertData(
-                    "INSERT INTO accounts (account_date, account_type, reference_type, reference_id, description, debit, credit, balance, date_time) VALUES (?, 'Cash', 'receipt', ?, ?, 0, ?, ?, ?)",
+                    "INSERT INTO accounts (account_date, account_type, reference_type, reference_id, description, debit, credit, balance, date_time) VALUES (?, 'Cash', 'receipt', ?, ?, ?, 0, ?, ?)",
                     'sisdds', [$payment_date, $customer_id, 'Payment received from ' . $customerName . ' (Receipt: ' . $receiptNo . ')', $amount, $lastBalance + $amount, $currentDateTime]
                 );
             } else {
+                if ($bank_id > 0) {
+                    updateBankBalance($bank_id, $amount, 'in');
+                }
                 $lastEntry = getRow("SELECT balance FROM accounts WHERE account_type = 'Bank' ORDER BY id DESC LIMIT 1");
                 $lastBalance = $lastEntry ? (float)$lastEntry['balance'] : 0;
-                $desc = 'Payment received from ' . $customerName . ' (Receipt: ' . $receiptNo . ')';
+                $desc = 'Payment received from ' . $customerName . ' (Receipt: ' . $receiptNo . ')' . ($bank_name ? " [$bank_name]" : "");
                 insertData(
-                    "INSERT INTO accounts (account_date, account_type, reference_type, reference_id, description, debit, credit, balance, date_time) VALUES (?, 'Bank', 'receipt', ?, ?, 0, ?, ?, ?)",
+                    "INSERT INTO accounts (account_date, account_type, reference_type, reference_id, description, debit, credit, balance, date_time) VALUES (?, 'Bank', 'receipt', ?, ?, ?, 0, ?, ?)",
                     'sisdds', [$payment_date, $customer_id, $desc, $amount, $lastBalance + $amount, $currentDateTime]
                 );
             }
@@ -120,6 +156,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['customer_id'])) {
         }
     }
 }
+
+$bankAccounts = getActiveBankAccounts();
 
 $customers = getRows("SELECT c.id, c.customer_name, c.company_name, c.opening_balance,
     COALESCE(SUM(s.balance), 0) AS outstanding_sales,
@@ -198,7 +236,15 @@ include '../includes/sidebar.php';
                             </td>
                             <td><?php echo formatDate($r['payment_date']); ?></td>
                             <td class="text-end text-success"><strong><?php echo formatCurrency($r['amount']); ?></strong></td>
-                            <td><span class="badge bg-secondary"><?php echo ucfirst(str_replace('_', ' ', $r['payment_method'])); ?></span></td>
+                            <td>
+                                <?php if ($r['payment_method'] === 'bank'): ?>
+                                    <span class="badge bg-info text-dark">
+                                        <i class="fas fa-university me-1"></i>Bank<?php echo !empty($r['bank_name']) ? ': ' . htmlspecialchars($r['bank_name']) : ''; ?>
+                                    </span>
+                                <?php else: ?>
+                                    <span class="badge bg-secondary">Cash</span>
+                                <?php endif; ?>
+                            </td>
                             <td class="text-center">
                                 <button type="button" class="btn btn-sm btn-warning edit-btn" title="Edit"
                                     data-id="<?php echo $r['id']; ?>"
@@ -206,6 +252,7 @@ include '../includes/sidebar.php';
                                     data-date="<?php echo $r['payment_date']; ?>"
                                     data-amount="<?php echo $r['amount']; ?>"
                                     data-method="<?php echo $r['payment_method']; ?>"
+                                    data-bank-id="<?php echo $r['bank_id'] ?? ''; ?>"
                                     data-notes="<?php echo htmlspecialchars($r['notes'] ?? ''); ?>"
                                     onclick="openEdit(this)">
                                     <i class="fas fa-edit"></i>
@@ -281,6 +328,17 @@ include '../includes/sidebar.php';
                                 <option value="bank">Bank</option>
                             </select>
                         </div>
+                        <div class="col-md-4 mb-3" id="bankSelectGroup" style="display:none;">
+                            <label class="form-label fw-bold"><i class="fas fa-university me-1"></i>Select Bank *</label>
+                            <select class="form-select" id="bankSelect" name="bank_id">
+                                <option value="">-- Choose Bank Account --</option>
+                                <?php foreach ($bankAccounts as $ba): ?>
+                                    <option value="<?php echo $ba['id']; ?>">
+                                        <?php echo htmlspecialchars($ba['bank_name'] . ' (' . $ba['account_number'] . ')'); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Reference No</label>
                             <input type="text" class="form-control" name="reference_no">
@@ -332,12 +390,25 @@ include '../includes/sidebar.php';
                             <input type="number" step="0.01" class="form-control" name="edit_amount" id="editAmount" min="0.01" required>
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Payment Type *</label>
-                        <select class="form-select" name="edit_method" id="editMethod" required>
-                            <option value="cash">Cash</option>
-                            <option value="bank">Bank</option>
-                        </select>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Payment Type *</label>
+                            <select class="form-select" name="edit_method" id="editMethod" required>
+                                <option value="cash">Cash</option>
+                                <option value="bank">Bank</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3" id="editBankSelectGroup" style="display:none;">
+                            <label class="form-label fw-bold"><i class="fas fa-university me-1"></i>Select Bank *</label>
+                            <select class="form-select" name="edit_bank_id" id="editBankSelect">
+                                <option value="">-- Choose Bank Account --</option>
+                                <?php foreach ($bankAccounts as $ba): ?>
+                                    <option value="<?php echo $ba['id']; ?>">
+                                        <?php echo htmlspecialchars($ba['bank_name'] . ' (' . $ba['account_number'] . ')'); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Notes</label>
@@ -375,15 +446,39 @@ $(document).ready(function() {
         box.show();
     });
 
+    $('#payType').on('change', function() {
+        if ($(this).val() === 'bank') {
+            $('#bankSelectGroup').show();
+            $('#bankSelect').prop('required', true);
+        } else {
+            $('#bankSelectGroup').hide();
+            $('#bankSelect').prop('required', false);
+        }
+    });
+
+    $('#editMethod').on('change', function() {
+        if ($(this).val() === 'bank') {
+            $('#editBankSelectGroup').show();
+            $('#editBankSelect').prop('required', true);
+        } else {
+            $('#editBankSelectGroup').hide();
+            $('#editBankSelect').prop('required', false);
+        }
+    });
+
     $('#paymentTable').DataTable({ pageLength: 25, order: [[0, 'desc']], language: { emptyTable: 'No payments found' } });
 
     $('#paymentModal').on('hidden.bs.modal', function() {
         $(this).find('form')[0].reset();
         $('#balanceBox').hide();
+        $('#bankSelectGroup').hide();
+        $('#bankSelect').prop('required', false);
     });
 
     $('#editModal').on('hidden.bs.modal', function() {
         $(this).find('form')[0].reset();
+        $('#editBankSelectGroup').hide();
+        $('#editBankSelect').prop('required', false);
     });
 });
 
@@ -392,7 +487,17 @@ function openEdit(btn) {
     $('#editCustomer').val(btn.dataset.customer);
     $('#editDate').val(btn.dataset.date);
     $('#editAmount').val(btn.dataset.amount);
-    $('#editMethod').val(btn.dataset.method);
+    var method = btn.dataset.method;
+    $('#editMethod').val(method);
+    var bankId = btn.dataset.bankId || '';
+    $('#editBankSelect').val(bankId);
+    if (method === 'bank') {
+        $('#editBankSelectGroup').show();
+        $('#editBankSelect').prop('required', true);
+    } else {
+        $('#editBankSelectGroup').hide();
+        $('#editBankSelect').prop('required', false);
+    }
     $('#editNotes').val(btn.dataset.notes);
     new bootstrap.Modal(document.getElementById('editModal')).show();
 }

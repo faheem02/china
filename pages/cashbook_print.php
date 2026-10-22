@@ -12,12 +12,16 @@ if (!empty($from_date) && !empty($to_date)) {
         FROM customer_receipts cr WHERE cr.payment_method = 'cash' AND cr.payment_date >= ? AND cr.payment_date <= ?";
     $cashInRows = getRows($cashInSql, 'ss', [$from_date, $to_date]);
 
+    $cashInSalesRows = getRows("SELECT sale_date as txn_date, CONCAT('Sale - ', sale_no) as description, sale_no as reference, paid_amount as cash_in, 0 as cash_out FROM sales WHERE payment_method = 'cash' AND status = 'completed' AND paid_amount > 0 AND sale_date >= ? AND sale_date <= ?", 'ss', [$from_date, $to_date]);
+
     $cashOutSupplierSql = "SELECT sp.payment_date as txn_date, CONCAT('Payment to supplier - ', sp.payment_no) as description, sp.payment_no as reference, 0 as cash_in, sp.amount as cash_out
         FROM supplier_payments sp WHERE sp.payment_type = 'cash' AND sp.payment_date >= ? AND sp.payment_date <= ?";
     $cashOutSupplierRows = getRows($cashOutSupplierSql, 'ss', [$from_date, $to_date]);
+    $cashOutLocalPurchaseRows = getRows("SELECT purchase_date as txn_date, CONCAT('Local purchase - ', purchase_no) as description, purchase_no as reference, 0 as cash_in, paid_amount as cash_out FROM local_purchases WHERE payment_method = 'cash' AND paid_amount > 0 AND purchase_date >= ? AND purchase_date <= ?", 'ss', [$from_date, $to_date]);
+    $cashOutImportPurchaseRows = getRows("SELECT purchase_date as txn_date, CONCAT('Import purchase - ', purchase_no) as description, purchase_no as reference, 0 as cash_in, paid_amount_pkr as cash_out FROM import_purchases WHERE payment_method = 'cash' AND paid_amount_pkr > 0 AND purchase_date >= ? AND purchase_date <= ?", 'ss', [$from_date, $to_date]);
 
-    $cashOutExpenseSql = "SELECT e.expense_date as txn_date, CONCAT('Expense - ', e.category, ' - ', e.expense_no) as description, e.expense_no as reference, 0 as cash_in, e.amount as cash_out
-        FROM expenses e WHERE e.status = 'active' AND e.expense_date >= ? AND e.expense_date <= ?";
+    $cashOutExpenseSql = "SELECT e.expense_date as txn_date, CONCAT('Expense - ', e.category, ' - ', e.expense_no) as description, e.expense_no as reference, 0 as cash_in, e.paid_amount as cash_out
+        FROM expenses e WHERE e.paid_amount > 0 AND (e.paid_by = 'cash' OR e.paid_by = '' OR e.paid_by IS NULL) AND e.status IN ('active', 'paid') AND e.expense_date >= ? AND e.expense_date <= ?";
     $cashOutExpenseRows = getRows($cashOutExpenseSql, 'ss', [$from_date, $to_date]);
 
     $cashOutEmpSql = "SELECT ep.payment_date as txn_date, CONCAT('Employee payment - ', ep.payment_no) as description, ep.payment_no as reference, 0 as cash_in, ep.amount as cash_out
@@ -34,7 +38,7 @@ if (!empty($from_date) && !empty($to_date)) {
         WHERE pt.type = 'paid' AND pt.payment_method = 'cash' AND pt.transaction_date >= ? AND pt.transaction_date <= ?";
     $partyPaidRows = getRows($partyPaidSql, 'ss', [$from_date, $to_date]);
 
-    $allTransactions = array_merge($cashInRows, $cashOutSupplierRows, $cashOutExpenseRows, $cashOutEmpRows, $partyReceivedRows, $partyPaidRows);
+    $allTransactions = array_merge($cashInRows, $cashInSalesRows, $cashOutSupplierRows, $cashOutLocalPurchaseRows, $cashOutImportPurchaseRows, $cashOutExpenseRows, $cashOutEmpRows, $partyReceivedRows, $partyPaidRows);
     usort($allTransactions, function($a, $b) { return strcmp($a['txn_date'], $b['txn_date']); });
 }
 
@@ -48,9 +52,15 @@ foreach ($allTransactions as $txn) {
 $openingBalance = 0;
 $preFromRow = getRow("SELECT COALESCE(SUM(cr.amount), 0) as total_in FROM customer_receipts cr WHERE cr.payment_method = 'cash' AND cr.payment_date < ?", 's', [$from_date]);
 $totalCashInBefore = $preFromRow ? (float)$preFromRow['total_in'] : 0;
+$preCashSales = getRow("SELECT COALESCE(SUM(paid_amount), 0) AS total_in FROM sales WHERE payment_method = 'cash' AND status = 'completed' AND sale_date < ?", 's', [$from_date]);
+$totalCashInBefore += $preCashSales ? (float)$preCashSales['total_in'] : 0;
 $preFromOutSupplierRow = getRow("SELECT COALESCE(SUM(sp.amount), 0) as total_out FROM supplier_payments sp WHERE sp.payment_type = 'cash' AND sp.payment_date < ?", 's', [$from_date]);
 $totalOutSupplierBefore = $preFromOutSupplierRow ? (float)$preFromOutSupplierRow['total_out'] : 0;
-$preFromOutExpenseRow = getRow("SELECT COALESCE(SUM(e.amount), 0) as total_out FROM expenses e WHERE e.status = 'active' AND e.expense_date < ?", 's', [$from_date]);
+$preLocalPurchase = getRow("SELECT COALESCE(SUM(paid_amount), 0) AS total_out FROM local_purchases WHERE payment_method = 'cash' AND purchase_date < ?", 's', [$from_date]);
+$totalOutSupplierBefore += $preLocalPurchase ? (float)$preLocalPurchase['total_out'] : 0;
+$preImportPurchase = getRow("SELECT COALESCE(SUM(paid_amount_pkr), 0) AS total_out FROM import_purchases WHERE payment_method = 'cash' AND purchase_date < ?", 's', [$from_date]);
+$totalOutSupplierBefore += $preImportPurchase ? (float)$preImportPurchase['total_out'] : 0;
+$preFromOutExpenseRow = getRow("SELECT COALESCE(SUM(e.paid_amount), 0) as total_out FROM expenses e WHERE e.paid_amount > 0 AND (e.paid_by = 'cash' OR e.paid_by = '' OR e.paid_by IS NULL) AND e.status IN ('active', 'paid') AND e.expense_date < ?", 's', [$from_date]);
 $totalOutExpenseBefore = $preFromOutExpenseRow ? (float)$preFromOutExpenseRow['total_out'] : 0;
 $preFromOutEmpRow = getRow("SELECT COALESCE(SUM(ep.amount), 0) as total_out FROM employee_payments ep WHERE ep.payment_date < ?", 's', [$from_date]);
 $totalOutEmpBefore = $preFromOutEmpRow ? (float)$preFromOutEmpRow['total_out'] : 0;

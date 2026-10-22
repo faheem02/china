@@ -28,7 +28,7 @@ $expenseHeads = getRows("SELECT DISTINCT category_name FROM expense_categories W
     <div class="card-body"><form method="GET" class="row g-3">
         <div class="col-md-3"><label class="form-label">From</label><input type="date" class="form-control" name="from_date" value="<?php echo $fromDate; ?>"></div>
         <div class="col-md-3"><label class="form-label">To</label><input type="date" class="form-control" name="to_date" value="<?php echo $toDate; ?>"></div>
-        <div class="col-md-3"><label class="form-label">Expense Head</label><select class="form-select" name="head"><option value="">All Heads</option><?php foreach($expenseHeads as $eh):?><option value="<?php echo htmlspecialchars($eh['category_name']);?>" <?php echo $headFilter === $eh['category_name'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($eh['category_name']);?></option><?php endforeach;?></select></div>
+        <div class="col-md-3"><label class="form-label">Expense Category</label><select class="form-select" name="head"><option value="">All Categories</option><?php foreach($expenseHeads as $eh):?><option value="<?php echo htmlspecialchars($eh['category_name']);?>" <?php echo $headFilter === $eh['category_name'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($eh['category_name']);?></option><?php endforeach;?></select></div>
         <div class="col-md-3 d-flex align-items-end"><button type="submit" class="btn btn-primary w-100"><i class="fas fa-search me-2"></i>Generate</button></div>
     </form></div>
 </div></div></div>
@@ -41,7 +41,7 @@ $expenseHeads = getRows("SELECT DISTINCT category_name FROM expense_categories W
 </div>
 
 <div class="row mb-3"><div class="col-md-6"><div class="card shadow-sm">
-    <div class="card-header"><i class="fas fa-chart-pie me-2"></i>By Expense Head</div>
+    <div class="card-header"><i class="fas fa-chart-pie me-2"></i>By Expense Category</div>
     <div class="card-body"><table class="table table-striped"><thead><tr><th>Head</th><th class="text-end">Count</th><th class="text-end">Amount</th><th class="text-end">% of Total</th></tr></thead><tbody>
     <?php foreach($byCategory as $cat): ?>
     <tr><td><span class="badge bg-primary"><?php echo htmlspecialchars($cat['category']);?></span></td><td class="text-end"><?php echo $cat['cnt'];?></td><td class="text-end fw-bold"><?php echo formatCurrency($cat['total_amt']);?></td><td class="text-end"><?php echo $totalAmount > 0 ? number_format(($cat['total_amt']/$totalAmount)*100,1).'%' : '0%';?></td></tr>

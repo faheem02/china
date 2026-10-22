@@ -140,65 +140,69 @@ include '../includes/sidebar.php';
                                                 <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#matModal<?php echo $order['id']; ?>">
                                                     <i class="fas fa-list"></i> <?php echo count($mats); ?> Items
                                                 </button>
-                                                
-                                                <!-- Materials Modal -->
-                                                <div class="modal fade" id="matModal<?php echo $order['id']; ?>" tabindex="-1">
-                                                    <div class="modal-dialog modal-lg">
-                                                        <div class="modal-content">
-                                                            <div class="modal-header">
-                                                                <h5 class="modal-title">
-                                                                    <i class="fas fa-cubes me-2"></i>
-                                                                    Materials for <?php echo htmlspecialchars($order['production_no'] ?? ''); ?>
-                                                                </h5>
-                                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                                            </div>
-                                                            <div class="modal-body">
-                                                                <table class="table table-sm table-bordered">
-                                                                    <thead>
-                                                                        <tr>
-                                                                            <th>Material</th>
-                                                                            <th>Quantity Used</th>
-                                                                            <th>Unit Price</th>
-                                                                            <th>Total</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        <?php foreach ($mats as $m): ?>
-                                                                            <tr>
-                                                                                <td><?php echo htmlspecialchars(($m['material_code'] ?? '') . ' - ' . ($m['material_name'] ?? '')); ?></td>
-                                                                                <td><?php echo isset($m['quantity_used']) ? number_format($m['quantity_used'], 2) : '0.00'; ?> <?php echo $m['unit'] ?? ''; ?></td>
-                                                                                <td><?php echo isset($m['cost_per_unit']) ? formatCurrency($m['cost_per_unit']) : '0.00'; ?></td>
-                                                                                <td><?php echo isset($m['total_cost']) ? formatCurrency($m['total_cost']) : '0.00'; ?></td>
-                                                                            </tr>
-                                                                        <?php endforeach; ?>
-                                                                    </tbody>
-                                                                    <tfoot>
-                                                                        <tr class="table-primary">
-                                                                            <th colspan="3" class="text-end">Total</th>
-                                                                            <th><?php echo isset($order['total_cost']) ? formatCurrency($order['total_cost']) : '0.00'; ?></th>
-                                                                        </tr>
-                                                                    </tfoot>
-                                                                </table>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
                                             <?php else: ?>
                                                 <span class="text-muted">No materials</span>
                                             <?php endif; ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="8" class="text-center text-muted py-3">
-                                        <i class="fas fa-info-circle me-2"></i>No production orders found
-                                    </td>
-                                </tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Materials Modals -->
+                <?php foreach ($orders as $order): ?>
+                    <?php
+                    $mats = getRows("SELECT prm.*, rm.material_code, rm.material_name, rm.unit 
+                                  FROM production_raw_materials prm 
+                                  LEFT JOIN raw_materials rm ON prm.material_id = rm.id 
+                                  WHERE prm.production_id = ?", 'i', [$order['id']]);
+                    ?>
+                    <?php if (count($mats) > 0): ?>
+                        <div class="modal fade" id="matModal<?php echo $order['id']; ?>" tabindex="-1">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">
+                                            <i class="fas fa-cubes me-2"></i>
+                                            Materials for <?php echo htmlspecialchars($order['production_no'] ?? ''); ?>
+                                        </h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <table class="table table-sm table-bordered">
+                                            <thead>
+                                                <tr>
+                                                    <th>Material</th>
+                                                    <th>Quantity Used</th>
+                                                    <th>Unit Price</th>
+                                                    <th>Total</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($mats as $m): ?>
+                                                    <tr>
+                                                        <td><?php echo htmlspecialchars(($m['material_code'] ?? '') . ' - ' . ($m['material_name'] ?? '')); ?></td>
+                                                        <td><?php echo isset($m['quantity_used']) ? number_format($m['quantity_used'], 2) : '0.00'; ?> <?php echo $m['unit'] ?? ''; ?></td>
+                                                        <td><?php echo isset($m['cost_per_unit']) ? formatCurrency($m['cost_per_unit']) : '0.00'; ?></td>
+                                                        <td><?php echo isset($m['total_cost']) ? formatCurrency($m['total_cost']) : '0.00'; ?></td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                            <tfoot>
+                                                <tr class="table-primary">
+                                                    <th colspan="3" class="text-end">Total</th>
+                                                    <th><?php echo formatCurrency($order['total_cost'] ?? 0); ?></th>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                    <?php endforeach; ?>
             </div>
         </div>
     </div>
@@ -241,7 +245,7 @@ include '../includes/sidebar.php';
 $(document).ready(function() {
     $('#productionTable').DataTable({
         "pageLength": 25,
-        "order": [[0, "desc"]],
+        "order": [[1, "desc"]],
         "language": {
             "search": "Search Production:",
             "lengthMenu": "Show _MENU_ entries",

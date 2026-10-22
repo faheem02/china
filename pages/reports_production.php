@@ -10,21 +10,33 @@ include '../includes/header.php';
 include '../includes/sidebar.php';
 include '../includes/print_header.php';
 
-$productions = getRows("SELECT po.*, fg.product_name, fg.product_code, fg.cost_price, fg.selling_price FROM production_orders po LEFT JOIN finished_goods fg ON po.finished_good_id = fg.id WHERE DATE(po.date_time) BETWEEN ? AND ? ORDER BY po.date_time DESC", 'ss', [$fromDate, $toDate]);
+$productions = getRows("SELECT po.*, fg.product_name, fg.product_code, fg.cost_price, fg.selling_price 
+    FROM production po 
+    LEFT JOIN finished_goods fg ON po.finished_good_id = fg.id 
+    WHERE po.production_date BETWEEN ? AND ? 
+    ORDER BY po.production_date DESC", 'ss', [$fromDate, $toDate]);
 
-$totalProduced = array_sum(array_column($productions, 'quantity_produced'));
+$totalProduced = array_sum(array_column($productions, 'quantity'));
 $totalCost = array_sum(array_column($productions, 'total_cost'));
 $totalValue = 0;
-foreach($productions as $pr) $totalValue += (float)$pr['quantity_produced'] * (float)$pr['selling_price'];
+foreach($productions as $pr) {
+    $sellingPrice = (float)($pr['selling_price'] ?? 0);
+    $totalValue += (float)$pr['quantity'] * $sellingPrice;
+}
 
-$materials = getRows("SELECT pom.*, rm.material_name, rm.unit FROM production_order_materials pom LEFT JOIN raw_materials rm ON pom.material_id = rm.id LEFT JOIN production_orders po ON pom.production_id = po.id WHERE DATE(po.date_time) BETWEEN ? AND ? ORDER BY rm.material_name", 'ss', [$fromDate, $toDate]);
+$materials = getRows("SELECT prm.*, rm.material_name, rm.unit 
+    FROM production_raw_materials prm 
+    LEFT JOIN raw_materials rm ON prm.material_id = rm.id 
+    LEFT JOIN production po ON prm.production_id = po.id 
+    WHERE po.production_date BETWEEN ? AND ? 
+    ORDER BY rm.material_name", 'ss', [$fromDate, $toDate]);
 
 $materialUsage = [];
 foreach($materials as $m) {
-    $name = $m['material_name'];
-    if(!isset($materialUsage[$name])) $materialUsage[$name] = ['name'=>$name, 'unit'=>$m['unit'], 'qty'=>0, 'cost'=>0];
+    $name = $m['material_name'] ?: 'Unknown Material';
+    if(!isset($materialUsage[$name])) $materialUsage[$name] = ['name'=>$name, 'unit'=>$m['unit'] ?: 'unit', 'qty'=>0, 'cost'=>0];
     $materialUsage[$name]['qty'] += (float)$m['quantity_used'];
-    $materialUsage[$name]['cost'] += (float)$m['quantity_used'] * (float)$m['cost_pkr'];
+    $materialUsage[$name]['cost'] += (float)$m['total_cost'];
 }
 usort($materialUsage, function($a,$b){ return $b['cost'] <=> $a['cost']; });
 $totalMaterialCost = array_sum(array_column($materialUsage, 'cost'));
@@ -50,7 +62,7 @@ $totalMaterialCost = array_sum(array_column($materialUsage, 'cost'));
     <div class="card-header"><i class="fas fa-cogs me-2"></i>Production Orders</div>
     <div class="card-body"><div class="table-responsive"><table class="table table-striped table-hover"><thead><tr><th>Date</th><th>Order #</th><th>Product</th><th class="text-end">Quantity</th><th class="text-end">Cost/Unit</th><th class="text-end">Total Cost</th><th>Status</th></tr></thead><tbody>
     <?php foreach($productions as $pr):?>
-    <tr><td><?php echo formatDate($pr['date_time']);?></td><td><strong><?php echo htmlspecialchars($pr['order_no']);?></strong></td><td><?php echo htmlspecialchars($pr['product_name']);?> (<?php echo htmlspecialchars($pr['product_code']);?>)</td><td class="text-end"><?php echo number_format($pr['quantity_produced']);?></td><td class="text-end"><?php echo formatCurrency($pr['cost_price']);?></td><td class="text-end fw-bold"><?php echo formatCurrency($pr['total_cost']);?></td><td><span class="badge bg-success"><?php echo ucfirst($pr['status']);?></span></td></tr>
+    <tr><td><?php echo formatDate($pr['production_date']);?></td><td><strong><?php echo htmlspecialchars($pr['production_no']);?></strong></td><td><?php echo htmlspecialchars($pr['product_name']);?> (<?php echo htmlspecialchars($pr['product_code']);?>)</td><td class="text-end"><?php echo number_format($pr['quantity']);?></td><td class="text-end"><?php echo formatCurrency($pr['quantity'] > 0 ? $pr['total_cost'] / $pr['quantity'] : 0);?></td><td class="text-end fw-bold"><?php echo formatCurrency($pr['total_cost']);?></td><td><span class="badge bg-success"><?php echo ucfirst($pr['status']);?></span></td></tr>
     <?php endforeach;?></tbody>
     <tfoot><tr class="table-active"><th colspan="3">Totals</th><th class="text-end"><?php echo number_format($totalProduced);?></th><th></th><th class="text-end"><?php echo formatCurrency($totalCost);?></th><th></th></tr></tfoot>
     </table></div></div>

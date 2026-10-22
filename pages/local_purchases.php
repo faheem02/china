@@ -14,10 +14,17 @@ if ($flash) {
 
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
+    $purchase = getRow("SELECT supplier_id, balance, paid_amount, payment_method, bank_id FROM local_purchases WHERE id = ?", 'i', [$id]);
     $items = getRows("SELECT material_id, quantity, item_type FROM local_purchase_items WHERE purchase_id = ?", 'i', [$id]);
     modifyData("DELETE FROM local_purchase_items WHERE purchase_id = ?", 'i', [$id]);
     $result = modifyData("DELETE FROM local_purchases WHERE id = ?", 'i', [$id]);
     if ($result !== false) {
+        if ($purchase) {
+            modifyData("UPDATE local_suppliers SET current_balance = current_balance - ? WHERE id = ?", 'di', [(float)$purchase['balance'], (int)$purchase['supplier_id']]);
+            if ($purchase['payment_method'] === 'bank' && !empty($purchase['bank_id']) && $purchase['paid_amount'] > 0) {
+                updateBankBalance($purchase['bank_id'], $purchase['paid_amount'], 'in');
+            }
+        } 
         foreach ($items as $item) {
             if ($item['item_type'] === 'finished_good') {
                 modifyData("UPDATE finished_goods SET current_stock = current_stock - ? WHERE id = ?", 'di', [$item['quantity'], $item['material_id']]);
@@ -69,8 +76,6 @@ include '../includes/sidebar.php';
                                 <th>Date</th>
                                 <th>Invoice No</th>
                                 <th>Total Amount</th>
-                                <th>Paid</th>
-                                <th>Balance</th>
                                 <th>Payment Status</th>
                                 <th>Actions</th>
                             </tr>
@@ -90,14 +95,13 @@ include '../includes/sidebar.php';
                                         <td><?php echo formatDate($purchase['purchase_date']); ?></td>
                                         <td><?php echo htmlspecialchars($purchase['invoice_no']); ?></td>
                                         <td><?php echo formatCurrency($purchase['total_amount']); ?></td>
-                                        <td><?php echo formatCurrency($purchase['paid_amount']); ?></td>
-                                        <td class="<?php echo $purchase['balance'] > 0 ? 'text-danger' : 'text-success'; ?>">
-                                            <?php echo formatCurrency($purchase['balance']); ?>
-                                        </td>
                                         <td>
                                             <span class="badge badge-status badge-<?php echo strtolower($purchase['payment_status']); ?>">
                                                 <?php echo ucfirst($purchase['payment_status']); ?>
                                             </span>
+                                            <?php if ($purchase['payment_method'] === 'bank'): ?>
+                                                <div class="mt-1"><span class="badge bg-info text-dark" style="font-size:10px;"><i class="fas fa-university me-1"></i><?php echo htmlspecialchars($purchase['bank_name'] ?: 'Bank'); ?></span></div>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
                                             <div class="btn-group btn-group-sm">

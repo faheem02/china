@@ -229,14 +229,9 @@ $hasSuppliers = is_array($suppliers) && count($suppliers) > 0;
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="11" class="text-center text-muted py-3">
-                                        <i class="fas fa-info-circle me-2"></i>No suppliers found
-                                    </td>
-                                </tr>
                             <?php endif; ?>
                         </tbody>
+                        <?php if (count($suppliers) > 0): ?>
                         <tfoot class="table-primary">
                             <tr>
                                 <th colspan="4" class="text-end">Total</th>
@@ -247,6 +242,7 @@ $hasSuppliers = is_array($suppliers) && count($suppliers) > 0;
                                 <th colspan="2"></th>
                             </tr>
                         </tfoot>
+                        <?php endif; ?>
                     </table>
                 </div>
             </div>
@@ -262,7 +258,10 @@ $hasSuppliers = is_array($suppliers) && count($suppliers) > 0;
 $(document).ready(function() {
     $('#supplierSummaryTable').DataTable({
         "pageLength": 25,
-        "order": [[8, "desc"]],
+        "order": [[1, "asc"]],
+        "columnDefs": [
+            { "orderable": false, "targets": [9] }
+        ],
         "language": {
             "search": "Search Suppliers:",
             "lengthMenu": "Show _MENU_ entries",

@@ -32,16 +32,19 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
 }
 
 $employees = getRows("SELECT e.*,
-    COALESCE((SELECT SUM(ep.amount) FROM employee_payments ep WHERE ep.employee_id = e.id), 0) as total_paid
+    COALESCE((SELECT SUM(ep.amount) FROM employee_payments ep WHERE ep.employee_id = e.id), 0) as total_paid,
+    COALESCE((SELECT SUM(pb.amount) FROM employee_payables pb WHERE pb.employee_id = e.id), 0) as total_billed
     FROM employees e
     ORDER BY e.id DESC");
 
 $totalEmployees = count($employees);
 $totalSalary = 0;
 $totalPaid = 0;
+$totalPayable = 0;
 foreach ($employees as $emp) {
     $totalSalary += (float)$emp['monthly_salary'];
     $totalPaid += (float)$emp['total_paid'];
+    $totalPayable += (float)$emp['opening_balance'] + (float)$emp['total_billed'] - (float)$emp['total_paid'];
 }
 
 include '../includes/header.php';
@@ -104,7 +107,7 @@ include '../includes/sidebar.php';
         <div class="stat-card" style="border-left-color: #dc3545;">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <div class="stat-number text-danger"><?php echo formatCurrency($totalSalary - $totalPaid); ?></div>
+                    <div class="stat-number text-danger"><?php echo formatCurrency($totalPayable); ?></div>
                     <div class="stat-label">Total Payable</div>
                 </div>
                 <div class="stat-icon"><i class="fas fa-exclamation-triangle text-danger"></i></div>
@@ -130,6 +133,7 @@ include '../includes/sidebar.php';
                                 <th>Designation</th>
                                 <th>Department</th>
                                 <th>Phone</th>
+                                <th>Opening Balance</th>
                                 <th>Salary (PKR)</th>
                                 <th>Total Paid</th>
                                 <th>Payable</th>
@@ -140,7 +144,7 @@ include '../includes/sidebar.php';
                             <?php if (count($employees) > 0): ?>
                                 <?php $counter = 1; ?>
                                 <?php foreach ($employees as $emp): ?>
-                                    <?php $payable = (float)$emp['monthly_salary'] - (float)$emp['total_paid']; ?>
+                                    <?php $payable = (float)$emp['opening_balance'] + (float)$emp['total_billed'] - (float)$emp['total_paid']; ?>
                                     <tr>
                                         <td><?php echo $counter++; ?></td>
                                         <td><?php echo htmlspecialchars($emp['employee_code'] ?: '-'); ?></td>
@@ -148,6 +152,7 @@ include '../includes/sidebar.php';
                                         <td><?php echo htmlspecialchars($emp['designation'] ?: '-'); ?></td>
                                         <td><?php echo htmlspecialchars($emp['department'] ?: '-'); ?></td>
                                         <td><?php echo htmlspecialchars($emp['phone'] ?: '-'); ?></td>
+                                        <td class="text-primary fw-bold"><?php echo formatCurrency($emp['opening_balance']); ?></td>
                                         <td><?php echo formatCurrency($emp['monthly_salary']); ?></td>
                                         <td><?php echo formatCurrency($emp['total_paid']); ?></td>
                                         <td>
@@ -174,12 +179,6 @@ include '../includes/sidebar.php';
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="10" class="text-center text-muted py-3">
-                                        <i class="fas fa-info-circle me-2"></i>No employees found
-                                    </td>
-                                </tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
@@ -196,7 +195,10 @@ include '../includes/sidebar.php';
 $(document).ready(function() {
     $('#employeeTable').DataTable({
         "pageLength": 25,
-        "order": [[0, "desc"]],
+        "order": [],
+        "columnDefs": [
+            { "orderable": false, "targets": [9] }
+        ],
         "language": {
             "search": "Search Employees:",
             "lengthMenu": "Show _MENU_ entries",

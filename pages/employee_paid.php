@@ -159,6 +159,12 @@ include '../includes/sidebar.php';
                 <i class="fas fa-money-bill-wave me-2"></i>Employee Payment History
             </div>
             <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-5">
+                        <label for="employeeNameSearch" class="form-label">Search by Employee Name</label>
+                        <input type="search" class="form-control" id="employeeNameSearch" placeholder="Enter employee name">
+                    </div>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-striped table-hover" id="paymentTable">
                         <thead>
@@ -296,10 +302,13 @@ include '../includes/sidebar.php';
 
 <script>
 $(document).ready(function() {
-    $('#paymentTable').DataTable({
+    var paymentTable = $('#paymentTable').DataTable({
         pageLength: 25,
         order: [[0, 'desc']],
         language: { search: 'Search Payments:', emptyTable: 'No payments found' }
+    });
+    $('#employeeNameSearch').on('input', function() {
+        paymentTable.column(2).search(this.value).draw();
     });
 
     // When bill is selected, auto-fill employee and amount

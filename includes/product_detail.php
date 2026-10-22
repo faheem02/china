@@ -37,7 +37,7 @@ $sql = "SELECT s.*, si.quantity, si.unit_price, si.total,
         FROM sale_items si 
         LEFT JOIN sales s ON si.sale_id = s.id 
         LEFT JOIN customers c ON s.customer_id = c.id 
-        WHERE si.product_id = ? 
+        WHERE si.product_id = ? AND (si.product_type = 'finished_good' OR si.product_type IS NULL)
         ORDER BY s.sale_date DESC, s.id DESC 
         LIMIT 20";
 $salesHistory = getRows($sql, 'i', [$productId]);

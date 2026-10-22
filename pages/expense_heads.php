@@ -2,7 +2,7 @@
 require_once '../includes/database.php';
 requireLogin();
 
-$pageTitle = 'Expense Heads';
+$pageTitle = 'Expense Categories';
 $message = '';
 $messageType = '';
 
@@ -19,7 +19,7 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     if ($head) {
         $hasExpenses = getRow("SELECT COUNT(*) AS cnt FROM expenses WHERE category = ?", 's', [$head['category_name']]);
         if ($hasExpenses['cnt'] > 0) {
-            $message = 'Cannot delete expense head with existing expenses! (' . $hasExpenses['cnt'] . ' expenses found)';
+            $message = 'Cannot delete expense category with existing expenses! (' . $hasExpenses['cnt'] . ' expenses found)';
             $messageType = 'danger';
         } else {
             modifyData("DELETE FROM expense_categories WHERE id = ?", 'i', [$id]);
@@ -74,9 +74,10 @@ include '../includes/sidebar.php';
 </div>
 
 <div class="row mb-3">
-    <div class="col-12">
-        <a href="expenses.php" class="btn btn-secondary btn-sm me-2"><i class="fas fa-arrow-left me-1"></i>All Expenses</a>
-        <a href="add_expense_head.php" class="btn btn-primary"><i class="fas fa-plus me-1"></i>Add New Head</a>
+    <div class="col-12 d-flex flex-wrap gap-2">
+        <a href="expenses.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>All Expenses</a>
+        <a href="add_expense_head.php" class="btn btn-primary"><i class="fas fa-plus-circle me-1"></i>Record Expense</a>
+        <a href="add_expense_head.php?new_head=1" class="btn btn-info text-white"><i class="fas fa-tag me-1"></i>Add New Head</a>
     </div>
 </div>
 
@@ -120,7 +121,7 @@ include '../includes/sidebar.php';
     <div class="col-12">
         <div class="card shadow-sm">
             <div class="card-header" style="background:#1a2332;color:#fff;">
-                <i class="fas fa-tags me-2"></i>Expense Heads
+                <i class="fas fa-tags me-2"></i>Expense Categories
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -153,7 +154,7 @@ include '../includes/sidebar.php';
                                             <a href="?view=<?php echo $h['id']; ?>" class="btn btn-info" title="View Expenses">
                                                 <i class="fas fa-eye"></i>
                                             </a>
-                                            <a href="add_expense_head.php?edit=<?php echo $h['id']; ?>" class="btn btn-primary" title="Edit">
+                                            <a href="add_expense_head.php?edit_head=<?php echo $h['id']; ?>" class="btn btn-primary" title="Edit">
                                                 <i class="fas fa-edit"></i>
                                             </a>
                                             <a href="?delete=<?php echo $h['id']; ?>" class="btn btn-danger delete-confirm" title="Delete">
@@ -256,7 +257,7 @@ $(document).ready(function() {
         var modal = new bootstrap.Modal(document.getElementById('viewExpensesModal'));
         modal.show();
     <?php endif; ?>
-    $('.delete-confirm').on('click', function(e) { if (!confirm('Delete this expense head?')) e.preventDefault(); });
+    $('.delete-confirm').on('click', function(e) { if (!confirm('Delete this expense category?')) e.preventDefault(); });
 });
 </script>
 

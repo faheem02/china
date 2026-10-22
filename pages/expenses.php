@@ -15,6 +15,11 @@ if ($flash) {
 // Handle Delete
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
+    $exp = getRow("SELECT paid_by, bank_id, paid_amount FROM expenses WHERE id = ?", 'i', [$id]);
+    if ($exp && in_array($exp['paid_by'], ['bank', 'bank_transfer', 'cheque'], true) && !empty($exp['bank_id']) && $exp['paid_amount'] > 0) {
+        updateBankBalance($exp['bank_id'], $exp['paid_amount'], 'in');
+    }
+    modifyData("DELETE FROM accounts WHERE reference_type = 'Expense' AND reference_id = ?", 'i', [$id]);
     $result = modifyData("DELETE FROM expenses WHERE id = ?", 'i', [$id]);
     if ($result !== false) {
         setFlash('Expense deleted successfully!', 'success');
@@ -33,32 +38,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $category = trim($_POST['category']);
     $description = trim($_POST['description']);
     $amount = (float)($_POST['amount'] ?? 0);
-    $paid_amount = (float)($_POST['paid_amount'] ?? 0);
-    $paid_by = trim($_POST['paid_by'] ?? '');
+    $paid_by = trim($_POST['paid_by'] ?? 'cash');
+    if (!in_array($paid_by, ['cash', 'bank', 'credit'], true)) {
+        $paid_by = 'cash';
+    }
+    $paid_amount = ($paid_by === 'credit') ? 0 : $amount;
+    $bank_id = ($paid_by === 'bank') ? (int)($_POST['bank_id'] ?? 0) : null;
+    $bank_name = null;
+    if ($bank_id > 0) {
+        $bRow = getRow("SELECT bank_name, account_number FROM bank_accounts WHERE id = ?", 'i', [$bank_id]);
+        if ($bRow) {
+            $bank_name = $bRow['bank_name'] . ' (' . $bRow['account_number'] . ')';
+        }
+    }
     $reference_no = trim($_POST['reference_no'] ?? '');
-    $payment_status = $_POST['payment_status'] ?? 'unpaid';
-    $status = $_POST['status'] ?? 'pending';
+    $payment_status = ($paid_amount >= $amount) ? 'paid' : (($paid_amount > 0) ? 'partial' : 'unpaid');
+    $status = ($payment_status === 'paid') ? 'paid' : 'pending';
 
     if (empty($expense_date)) {
         $message = 'Please select expense date!';
         $messageType = 'danger';
     } elseif (empty($category)) {
-        $message = 'Please select an expense head!';
+        $message = 'Please select an expense category!';
         $messageType = 'danger';
     } elseif ($amount <= 0) {
         $message = 'Amount must be greater than 0!';
         $messageType = 'danger';
+    } elseif ($paid_by === 'bank' && empty($bank_id)) {
+        $message = 'Please select a bank account!';
+        $messageType = 'danger';
     } else {
-        $balance = $amount - $paid_amount;
+        $balance = max(0, $amount - $paid_amount);
         $currentDateTime = getCurrentDateTime();
 
         if ($id > 0) {
-            $result = modifyData("UPDATE expenses SET expense_date=?, category=?, description=?, amount=?, paid_amount=?, balance=?, paid_by=?, reference_no=?, payment_status=?, status=?, date_time=? WHERE id=?",
-                'sssddssssssi', [$expense_date, $category, $description, $amount, $paid_amount, $balance, $paid_by, $reference_no, $payment_status, $status, $currentDateTime, $id]);
+            // Restore previous bank balance if old was bank
+            $oldExp = getRow("SELECT paid_by, bank_id, paid_amount FROM expenses WHERE id = ?", 'i', [$id]);
+            if ($oldExp && in_array($oldExp['paid_by'], ['bank', 'bank_transfer', 'cheque'], true) && !empty($oldExp['bank_id']) && $oldExp['paid_amount'] > 0) {
+                updateBankBalance($oldExp['bank_id'], $oldExp['paid_amount'], 'in');
+            }
+
+            $result = modifyData("UPDATE expenses SET expense_date=?, category=?, description=?, amount=?, paid_amount=?, balance=?, paid_by=?, bank_id=?, bank_name=?, reference_no=?, payment_status=?, status=?, date_time=? WHERE id=?",
+                'sssddssisssssi', [$expense_date, $category, $description, $amount, $paid_amount, $balance, $paid_by, $bank_id, $bank_name, $reference_no, $payment_status, $status, $currentDateTime, $id]);
+            
+            if ($paid_by === 'bank' && $bank_id > 0 && $paid_amount > 0) {
+                updateBankBalance($bank_id, $paid_amount, 'out');
+            }
+
+            modifyData("DELETE FROM accounts WHERE reference_type = 'Expense' AND reference_id = ?", 'i', [$id]);
+            if ($paid_amount > 0) {
+                $accountType = ($paid_by === 'cash') ? 'Cash' : 'Bank';
+                $lastAcc = getRow("SELECT balance FROM accounts WHERE account_type = ? ORDER BY id DESC LIMIT 1", 's', [$accountType]);
+                $curBal = $lastAcc ? (float)$lastAcc['balance'] : 0;
+                $newBal = $curBal - $paid_amount;
+                $accDesc = "Expense - " . $category . ($bank_name ? " [$bank_name]" : "") . ($description ? ": " . $description : "");
+                insertData(
+                    "INSERT INTO accounts (account_date, account_type, reference_type, reference_id, description, debit, credit, balance, date_time) VALUES (?, ?, 'Expense', ?, ?, 0, ?, ?, ?)",
+                    'ssisdds',
+                    [$expense_date, $accountType, $id, $accDesc, $paid_amount, $newBal, $currentDateTime]
+                );
+            }
         } else {
             $expense_no = generateCode('EXP');
-            $result = insertData("INSERT INTO expenses (expense_no, expense_date, category, description, amount, paid_amount, balance, paid_by, reference_no, payment_status, status, date_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                'ssssdddsssss', [$expense_no, $expense_date, $category, $description, $amount, $paid_amount, $balance, $paid_by, $reference_no, $payment_status, $status, $currentDateTime]);
+            $result = insertData("INSERT INTO expenses (expense_no, expense_date, category, description, amount, paid_amount, balance, paid_by, bank_id, bank_name, reference_no, payment_status, status, date_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                'ssssdddssissss', [$expense_no, $expense_date, $category, $description, $amount, $paid_amount, $balance, $paid_by, $bank_id, $bank_name, $reference_no, $payment_status, $status, $currentDateTime]);
+            
+            if ($result !== false && $paid_amount > 0) {
+                if ($paid_by === 'bank' && $bank_id > 0) {
+                    updateBankBalance($bank_id, $paid_amount, 'out');
+                }
+                $accountType = ($paid_by === 'cash') ? 'Cash' : 'Bank';
+                $lastAcc = getRow("SELECT balance FROM accounts WHERE account_type = ? ORDER BY id DESC LIMIT 1", 's', [$accountType]);
+                $curBal = $lastAcc ? (float)$lastAcc['balance'] : 0;
+                $newBal = $curBal - $paid_amount;
+                $accDesc = "Expense - " . $category . " (" . $expense_no . ")" . ($bank_name ? " [$bank_name]" : "") . ($description ? ": " . $description : "");
+                insertData(
+                    "INSERT INTO accounts (account_date, account_type, reference_type, reference_id, description, debit, credit, balance, date_time) VALUES (?, ?, 'Expense', ?, ?, 0, ?, ?, ?)",
+                    'ssisdds',
+                    [$expense_date, $accountType, $result, $accDesc, $paid_amount, $newBal, $currentDateTime]
+                );
+            }
         }
 
         if ($result !== false) {
@@ -75,7 +134,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Fetch data
 $expenses = getRows("SELECT * FROM expenses ORDER BY id DESC");
 $expenseHeads = getRows("SELECT * FROM expense_categories WHERE status = 'active' ORDER BY category_name");
-$totalExpenses = getRow("SELECT COALESCE(SUM(amount),0) AS total, COALESCE(SUM(paid_amount),0) AS paid FROM expenses");
+$bankAccounts = getActiveBankAccounts();
+$totalExpenses = getRow("SELECT COALESCE(SUM(amount),0) AS total FROM expenses");
 
 // Edit data
 $editExpense = null;
@@ -100,7 +160,7 @@ include '../includes/sidebar.php';
 </div>
 
 <div class="row mb-3">
-    <div class="col-md-3">
+    <div class="col-md-6">
         <div class="stat-card" style="border-left-color:#dc3545;">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
@@ -111,29 +171,7 @@ include '../includes/sidebar.php';
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="stat-card" style="border-left-color:#28a745;">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <div class="stat-number text-success"><?php echo formatCurrency($totalExpenses['paid']); ?></div>
-                    <div class="stat-label">Paid</div>
-                </div>
-                <div class="stat-icon" style="color:#28a745;"><i class="fas fa-check-circle"></i></div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stat-card" style="border-left-color:#ffc107;">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <div class="stat-number text-warning"><?php echo formatCurrency($totalExpenses['total'] - $totalExpenses['paid']); ?></div>
-                    <div class="stat-label">Outstanding</div>
-                </div>
-                <div class="stat-icon" style="color:#ffc107;"><i class="fas fa-clock"></i></div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
+    <div class="col-md-6">
         <div class="stat-card" style="border-left-color:#0d6efd;">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
@@ -147,11 +185,13 @@ include '../includes/sidebar.php';
 </div>
 
 <div class="row mb-3">
-    <div class="col-12">
-        <a href="expense_heads.php" class="btn btn-outline-primary btn-sm me-2"><i class="fas fa-tags me-1"></i>Expense Heads</a>
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#expenseModal">
-            <i class="fas fa-plus me-2"></i>Add New Expense
-        </button>
+    <div class="col-12 d-flex flex-wrap gap-2">
+        <a href="add_expense_head.php" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>Record New Expense
+        </a>
+        <a href="expense_heads.php" class="btn btn-outline-primary">
+            <i class="fas fa-tags me-1"></i>Expense Categories
+        </a>
     </div>
 </div>
 
@@ -169,13 +209,10 @@ include '../includes/sidebar.php';
                                 <th>#</th>
                                 <th>Expense No</th>
                                 <th>Date</th>
-                                <th>Expense Head</th>
+                                <th>Expense Category</th>
                                 <th>Description</th>
                                 <th>Amount</th>
-                                <th>Paid</th>
-                                <th>Balance</th>
-                                <th>Paid By</th>
-                                <th>Status</th>
+                                <th>Payment</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -188,23 +225,18 @@ include '../includes/sidebar.php';
                                     <td><span class="badge bg-primary"><?php echo htmlspecialchars($exp['category']); ?></span></td>
                                     <td><?php echo htmlspecialchars($exp['description'] ?: '-'); ?></td>
                                     <td><strong><?php echo formatCurrency($exp['amount']); ?></strong></td>
-                                    <td><?php echo formatCurrency($exp['paid_amount']); ?></td>
-                                    <td class="<?php echo $exp['balance'] > 0 ? 'text-danger' : 'text-success'; ?>">
-                                        <?php echo formatCurrency($exp['balance']); ?>
-                                    </td>
-                                    <td><?php echo htmlspecialchars($exp['paid_by'] ?: '-'); ?></td>
                                     <td>
-                                        <?php if ($exp['payment_status'] === 'paid'): ?>
-                                            <span class="badge bg-success">Paid</span>
-                                        <?php elseif ($exp['payment_status'] === 'partial'): ?>
-                                            <span class="badge bg-warning text-dark">Partial</span>
+                                        <?php if (in_array($exp['paid_by'], ['bank', 'bank_transfer', 'cheque'], true)): ?>
+                                            <span class="badge bg-info text-dark"><i class="fas fa-university me-1"></i><?php echo htmlspecialchars($exp['bank_name'] ?: 'Bank'); ?></span>
+                                        <?php elseif ($exp['paid_by'] === 'credit'): ?>
+                                            <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>Credit</span>
                                         <?php else: ?>
-                                            <span class="badge bg-danger">Unpaid</span>
+                                            <span class="badge bg-success"><i class="fas fa-money-bill-wave me-1"></i>Cash</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
-                                            <a href="?edit=<?php echo $exp['id']; ?>" class="btn btn-warning" title="Edit">
+                                            <a href="add_expense_head.php?edit_expense=<?php echo $exp['id']; ?>" class="btn btn-warning" title="Edit">
                                                 <i class="fas fa-edit"></i>
                                             </a>
                                             <a href="?delete=<?php echo $exp['id']; ?>" class="btn btn-danger delete-confirm" title="Delete">
@@ -241,9 +273,9 @@ include '../includes/sidebar.php';
                             <input type="date" class="form-control" name="expense_date" value="<?php echo $editExpense ? $editExpense['expense_date'] : date('Y-m-d'); ?>" required>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Expense Head *</label>
+                            <label class="form-label">Expense Category *</label>
                             <select class="form-select" name="category" required>
-                                <option value="">Select Expense Head</option>
+                                <option value="">Select Expense Category</option>
                                 <?php foreach ($expenseHeads as $head): ?>
                                     <option value="<?php echo htmlspecialchars($head['category_name']); ?>" <?php echo ($editExpense && $editExpense['category'] === $head['category_name']) ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($head['category_name']); ?>
@@ -260,31 +292,22 @@ include '../includes/sidebar.php';
                             <input type="number" step="0.01" class="form-control" name="amount" value="<?php echo $editExpense ? $editExpense['amount'] : '0.00'; ?>" required>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Paid Amount (PKR)</label>
-                            <input type="number" step="0.01" class="form-control" name="paid_amount" value="<?php echo $editExpense ? $editExpense['paid_amount'] : '0.00'; ?>">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Paid By</label>
-                            <input type="text" class="form-control" name="paid_by" value="<?php echo $editExpense ? htmlspecialchars($editExpense['paid_by'] ?? '') : ''; ?>" placeholder="e.g. Kashif Raza">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Reference No</label>
-                            <input type="text" class="form-control" name="reference_no" value="<?php echo $editExpense ? htmlspecialchars($editExpense['reference_no'] ?? '') : ''; ?>" placeholder="e.g. Bill #123">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Payment Status</label>
-                            <select class="form-select" name="payment_status">
-                                <option value="unpaid" <?php echo ($editExpense && ($editExpense['payment_status'] ?? '') == 'unpaid') ? 'selected' : ''; ?>>Unpaid</option>
-                                <option value="partial" <?php echo ($editExpense && ($editExpense['payment_status'] ?? '') == 'partial') ? 'selected' : ''; ?>>Partial</option>
-                                <option value="paid" <?php echo ($editExpense && ($editExpense['payment_status'] ?? '') == 'paid') ? 'selected' : ''; ?>>Paid</option>
+                            <label class="form-label">Payment Method *</label>
+                            <?php $currPaidBy = $editExpense['paid_by'] ?? 'cash'; ?>
+                            <select class="form-select" name="paid_by" id="modal_paid_by" onchange="toggleModalBank(this.value)" required>
+                                <option value="cash" <?php echo $currPaidBy === 'cash' ? 'selected' : ''; ?>>Cash</option>
+                                <option value="bank" <?php echo in_array($currPaidBy, ['bank', 'bank_transfer', 'cheque'], true) ? 'selected' : ''; ?>>Bank</option>
                             </select>
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Status</label>
-                            <select class="form-select" name="status">
-                                <option value="pending" <?php echo ($editExpense && $editExpense['status'] == 'pending') ? 'selected' : ''; ?>>Pending</option>
-                                <option value="paid" <?php echo ($editExpense && $editExpense['status'] == 'paid') ? 'selected' : ''; ?>>Paid</option>
-                                <option value="cancelled" <?php echo ($editExpense && $editExpense['status'] == 'cancelled') ? 'selected' : ''; ?>>Cancelled</option>
+                        <div class="col-md-4 mb-3" id="modal_bank_group" style="display: <?php echo in_array($currPaidBy, ['bank', 'bank_transfer', 'cheque'], true) ? 'block' : 'none'; ?>;">
+                            <label class="form-label text-primary fw-bold"><i class="fas fa-university me-1"></i>Bank Account *</label>
+                            <select class="form-select" name="bank_id" id="modal_bank_id">
+                                <option value="">-- Select Bank Account --</option>
+                                <?php foreach ($bankAccounts as $ba): ?>
+                                    <option value="<?php echo $ba['id']; ?>" <?php echo ($editExpense && ($editExpense['bank_id'] ?? null) == $ba['id']) ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($ba['bank_name']); ?> - <?php echo htmlspecialchars($ba['account_number']); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                     </div>
@@ -299,6 +322,15 @@ include '../includes/sidebar.php';
 </div>
 
 <script>
+function toggleModalBank(method) {
+    var bg = document.getElementById('modal_bank_group');
+    if (bg) {
+        bg.style.display = (method === 'bank') ? 'block' : 'none';
+        var bSel = document.getElementById('modal_bank_id');
+        if (bSel) bSel.required = (method === 'bank');
+    }
+}
+
 $(document).ready(function() {
     <?php if ($editExpense): ?>
         var modal = new bootstrap.Modal(document.getElementById('expenseModal'));

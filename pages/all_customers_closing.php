@@ -93,18 +93,12 @@ include '../includes/print_header.php';
                                             </span>
                                         </td>
                                         <td>
-                                            <a href="customer_ledger.php?id=<?php echo $c['id']; ?>" class="btn btn-info btn-sm" title="View Ledger">
+                                            <a href="customer_party_ledger.php?id=<?php echo $c['id']; ?>" class="btn btn-info btn-sm" title="View Ledger">
                                                 <i class="fas fa-book"></i>
                                             </a>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-3">
-                                        <i class="fas fa-info-circle me-2"></i>No customers found
-                                    </td>
-                                </tr>
                             <?php endif; ?>
                         </tbody>
                     </table>

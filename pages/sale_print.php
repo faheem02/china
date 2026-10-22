@@ -9,8 +9,13 @@ $sale = getRow("SELECT s.*, c.customer_name, c.company_name, c.phone as cust_pho
     FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.id = ?", 'i', [$saleId]);
 if (!$sale) { header('Location: sales.php'); exit; }
 
-$items = getRows("SELECT si.*, fg.product_code, fg.product_name, fg.unit
-    FROM sale_items si LEFT JOIN finished_goods fg ON si.product_id = fg.id
+$items = getRows("SELECT si.*, 
+    COALESCE(rm.material_code, fg.product_code) AS product_code,
+    COALESCE(rm.material_name, fg.product_name) AS product_name,
+    COALESCE(rm.unit, fg.unit) AS unit
+    FROM sale_items si 
+    LEFT JOIN finished_goods fg ON si.product_id = fg.id AND (si.product_type = 'finished_good' OR si.product_type IS NULL)
+    LEFT JOIN raw_materials rm ON si.product_id = rm.id AND si.product_type = 'raw_material'
     WHERE si.sale_id = ?", 'i', [$saleId]);
 
 // ── FIXED: Properly handle customer name with null checking ──
@@ -37,6 +42,42 @@ if (empty($customerName) && isset($sale['customer_name'])) {
 if (empty($customerName)) {
     $customerName = 'Walk-in Customer';
 }
+
+// ── Previous Balance Calculation ──
+$previousBalance = 0;
+$showPreviousBalance = false;
+
+if (!empty($sale['customer_id']) && ($sale['customer_type'] ?? '') !== 'walkin') {
+    $showPreviousBalance = true;
+    if (isset($sale['previous_balance']) && (float)$sale['previous_balance'] != 0) {
+        $previousBalance = (float)$sale['previous_balance'];
+    } else {
+        // Calculate ledger balance prior to this sale
+        $cust = getRow("SELECT opening_balance, opening_balance_type FROM customers WHERE id = ?", 'i', [$sale['customer_id']]);
+        if ($cust) {
+            $op = (float)$cust['opening_balance'];
+            if (($cust['opening_balance_type'] ?? 'receivable') === 'payable') {
+                $op = -$op;
+            }
+            $priorSales = getRow("SELECT COALESCE(SUM(total_amount), 0) as total_sales,
+                                         COALESCE(SUM(paid_amount), 0) as total_paid
+                                  FROM sales 
+                                  WHERE customer_id = ? AND status = 'completed' 
+                                  AND (sale_date < ? OR (sale_date = ? AND id < ?))", 
+                                  'issi', [$sale['customer_id'], $sale['sale_date'], $sale['sale_date'], $sale['id']]);
+            $priorReceipts = getRow("SELECT COALESCE(SUM(amount), 0) as total_receipts 
+                                    FROM customer_receipts 
+                                    WHERE customer_id = ? AND (payment_date < ? OR (payment_date = ? AND date_time < ?))",
+                                    'isss', [$sale['customer_id'], $sale['sale_date'], $sale['sale_date'], $sale['date_time'] ?? ($sale['sale_date'] . ' 23:59:59')]);
+            $previousBalance = $op + (float)($priorSales['total_sales'] ?? 0) - (float)($priorSales['total_paid'] ?? 0) - (float)($priorReceipts['total_receipts'] ?? 0);
+        }
+    }
+}
+
+$billAmount = (float)($sale['final_amount'] ?? $sale['net_amount'] ?? $sale['total_amount'] ?? 0);
+$paidAmount = (float)($sale['paid_amount'] ?? 0);
+$billBalance = (float)($sale['balance'] ?? ($billAmount - $paidAmount));
+$totalBalanceDue = $previousBalance + $billBalance;
 
 $company = getRow("SELECT * FROM company_settings LIMIT 1");
 ?>
@@ -144,7 +185,12 @@ body { background: #f0f2f5; }
             <tr>
                 <td><?php echo $i++; ?></td>
                 <td><?php echo htmlspecialchars($item['product_code'] ?? ''); ?></td>
-                <td><?php echo htmlspecialchars($item['product_name'] ?? ''); ?></td>
+                <td>
+                    <?php echo htmlspecialchars($item['product_name'] ?? ''); ?>
+                    <?php if (($item['product_type'] ?? '') === 'raw_material'): ?>
+                        <span class="badge bg-warning text-dark ms-1" style="font-size:10px;">Raw Material</span>
+                    <?php endif; ?>
+                </td>
                 <td style="text-align:center"><?php echo number_format($item['quantity'] ?? 0, 2); ?> <?php echo $item['unit'] ?? ''; ?></td>
                 <td style="text-align:right"><?php echo number_format($item['unit_price'] ?? 0, 2); ?></td>
                 <td style="text-align:right"><?php echo number_format($item['total'] ?? 0, 2); ?></td>
@@ -161,10 +207,41 @@ body { background: #f0f2f5; }
             <?php if (isset($sale['total_refund']) && $sale['total_refund'] > 0): ?>
             <tr><td>Refund:</td><td style="color:#dc3545">-<?php echo number_format($sale['total_refund'], 2); ?></td></tr>
             <?php endif; ?>
-            <tr><td><strong>Grand Total:</strong></td><td><strong><?php echo number_format($sale['final_amount'] ?? $sale['net_amount'] ?? 0, 2); ?></strong></td></tr>
-            <tr><td>Paid:</td><td><?php echo number_format($sale['paid_amount'] ?? 0, 2); ?></td></tr>
-            <?php if (isset($sale['balance']) && $sale['balance'] > 0): ?>
+            <tr><td><strong>Bill Amount:</strong></td><td><strong><?php echo number_format($billAmount, 2); ?></strong></td></tr>
+            <tr><td>Paid:</td><td><?php echo number_format($paidAmount, 2); ?></td></tr>
+            <?php if ($billBalance > 0 && $showPreviousBalance): ?>
+            <tr style="color:#dc3545"><td>Bill Balance:</td><td><?php echo number_format($billBalance, 2); ?></td></tr>
+            <?php elseif (($sale['balance'] ?? 0) > 0 && !$showPreviousBalance): ?>
             <tr style="color:#dc3545"><td><strong>Balance:</strong></td><td><strong><?php echo number_format($sale['balance'], 2); ?></strong></td></tr>
+            <?php endif; ?>
+
+            <?php if ($showPreviousBalance): ?>
+            <tr>
+                <td>Previous Balance:</td>
+                <td>
+                    <?php 
+                    if ($previousBalance < 0) {
+                        echo '-' . number_format(abs($previousBalance), 2) . ' (Adv)';
+                    } else {
+                        echo number_format($previousBalance, 2);
+                    }
+                    ?>
+                </td>
+            </tr>
+            <tr style="border-top: 2px solid #1a2332; font-size: 14px;">
+                <td><strong>Total Balance Due:</strong></td>
+                <td>
+                    <strong style="<?php echo $totalBalanceDue > 0 ? 'color:#dc3545;' : 'color:#198754;'; ?>">
+                        <?php 
+                        if ($totalBalanceDue < 0) {
+                            echo '-' . number_format(abs($totalBalanceDue), 2) . ' (Adv)';
+                        } else {
+                            echo number_format($totalBalanceDue, 2);
+                        }
+                        ?>
+                    </strong>
+                </td>
+            </tr>
             <?php endif; ?>
         </table>
     </div>
@@ -195,7 +272,12 @@ body { background: #f0f2f5; }
         <tbody>
             <?php foreach ($items as $item): ?>
             <tr>
-                <td><?php echo htmlspecialchars($item['product_name'] ?? ''); ?></td>
+                <td>
+                    <?php echo htmlspecialchars($item['product_name'] ?? ''); ?>
+                    <?php if (($item['product_type'] ?? '') === 'raw_material'): ?>
+                        <br><small style="color:#666;">(Raw Material)</small>
+                    <?php endif; ?>
+                </td>
                 <td style="text-align:right"><?php echo number_format($item['quantity'] ?? 0, 2); ?></td>
                 <td style="text-align:right"><?php echo number_format($item['unit_price'] ?? 0, 2); ?></td>
                 <td style="text-align:right"><?php echo number_format($item['total'] ?? 0, 2); ?></td>
@@ -212,10 +294,22 @@ body { background: #f0f2f5; }
         <?php if (isset($sale['total_refund']) && $sale['total_refund'] > 0): ?>
         <tr><td>Refund:</td><td style="text-align:right;color:red">-<?php echo number_format($sale['total_refund'], 2); ?></td></tr>
         <?php endif; ?>
-        <tr><td class="th-total">Grand Total:</td><td class="th-total" style="text-align:right"><?php echo number_format($sale['final_amount'] ?? $sale['net_amount'] ?? 0, 2); ?></td></tr>
-        <tr><td>Paid:</td><td style="text-align:right"><?php echo number_format($sale['paid_amount'] ?? 0, 2); ?></td></tr>
-        <?php if (isset($sale['balance']) && $sale['balance'] > 0): ?>
+        <tr><td class="th-total">Bill Amount:</td><td class="th-total" style="text-align:right"><?php echo number_format($billAmount, 2); ?></td></tr>
+        <tr><td>Paid:</td><td style="text-align:right"><?php echo number_format($paidAmount, 2); ?></td></tr>
+        <?php if ($billBalance > 0 && $showPreviousBalance): ?>
+        <tr><td>Bill Balance:</td><td style="text-align:right;color:red"><?php echo number_format($billBalance, 2); ?></td></tr>
+        <?php elseif (($sale['balance'] ?? 0) > 0 && !$showPreviousBalance): ?>
         <tr><td><strong>Balance Due:</strong></td><td style="text-align:right;color:red"><strong><?php echo number_format($sale['balance'], 2); ?></strong></td></tr>
+        <?php endif; ?>
+
+        <?php if ($showPreviousBalance): ?>
+        <tr><td>Prev. Balance:</td><td style="text-align:right"><?php echo ($previousBalance < 0 ? '-' : '') . number_format(abs($previousBalance), 2); ?></td></tr>
+        <tr class="th-total" style="border-top:1px dashed #000;">
+            <td>Total Due:</td>
+            <td style="text-align:right;<?php echo $totalBalanceDue > 0 ? 'color:red;' : ''; ?>">
+                <?php echo ($totalBalanceDue < 0 ? '-' : '') . number_format(abs($totalBalanceDue), 2); ?>
+            </td>
+        </tr>
         <?php endif; ?>
     </table>
     <div class="th-footer">

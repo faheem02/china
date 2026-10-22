@@ -14,10 +14,17 @@ if ($flash) {
 
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = (int)$_GET['delete'];
+    $purchase = getRow("SELECT supplier_id, balance_cny, paid_amount_pkr, payment_method, bank_id FROM import_purchases WHERE id = ?", 'i', [$id]);
     $items = getRows("SELECT material_id, quantity, item_type FROM import_purchase_items WHERE purchase_id = ?", 'i', [$id]);
     modifyData("DELETE FROM import_purchase_items WHERE purchase_id = ?", 'i', [$id]);
     $result = modifyData("DELETE FROM import_purchases WHERE id = ?", 'i', [$id]);
     if ($result !== false) {
+        if ($purchase) {
+            modifyData("UPDATE chinese_suppliers SET current_balance = current_balance - ? WHERE id = ?", 'di', [(float)$purchase['balance_cny'], (int)$purchase['supplier_id']]);
+            if ($purchase['payment_method'] === 'bank' && !empty($purchase['bank_id']) && $purchase['paid_amount_pkr'] > 0) {
+                updateBankBalance($purchase['bank_id'], $purchase['paid_amount_pkr'], 'in');
+            }
+        }
         foreach ($items as $item) {
             $matId = (int)$item['material_id'];
             $qty = (float)$item['quantity'];
@@ -128,12 +135,6 @@ include '../includes/sidebar.php';
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="10" class="text-center text-muted py-3">
-                                        <i class="fas fa-info-circle me-2"></i>No import purchases found
-                                    </td>
-                                </tr>
                             <?php endif; ?>
                         </tbody>
                     </table>

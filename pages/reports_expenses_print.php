@@ -83,7 +83,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; }
 
     <?php if (count($byCategory) > 0): ?>
     <div style="margin-bottom:25px;">
-        <h5 style="font-size:14px; font-weight:700; margin-bottom:10px; padding:8px 12px; color:#fff; background:#6f42c1; border-radius:4px;"><i class="fas fa-chart-pie me-2"></i>By Expense Head</h5>
+        <h5 style="font-size:14px; font-weight:700; margin-bottom:10px; padding:8px 12px; color:#fff; background:#6f42c1; border-radius:4px;"><i class="fas fa-chart-pie me-2"></i>By Expense Category</h5>
         <table class="table table-sm">
             <thead><tr><th>Category</th><th style="text-align:right">Count</th><th style="text-align:right">Amount</th><th style="text-align:right">% of Total</th></tr></thead>
             <tbody>
