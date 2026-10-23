@@ -58,10 +58,21 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     }
 }
 
-// Get all completed/pending sales
-$sql = "SELECT s.*, c.customer_name
+// Get all completed/pending sales with item cost value (for profit reporting)
+$sql = "SELECT s.*, c.customer_name, COALESCE(items.cost_value, 0) AS cost_value
         FROM sales s
         LEFT JOIN customers c ON s.customer_id = c.id
+        LEFT JOIN (
+            SELECT si.sale_id,
+                   SUM(si.quantity * CASE
+                           WHEN si.product_type = 'raw_material' THEN COALESCE(rm.purchase_price_pkr, 0)
+                           ELSE COALESCE(fg.cost_price, 0)
+                       END) AS cost_value
+            FROM sale_items si
+            LEFT JOIN raw_materials rm ON rm.id = si.product_id AND si.product_type = 'raw_material'
+            LEFT JOIN finished_goods fg ON fg.id = si.product_id AND si.product_type <> 'raw_material'
+            GROUP BY si.sale_id
+        ) items ON items.sale_id = s.id
         WHERE s.status IN ('completed', 'pending')
         ORDER BY s.id DESC";
 $sales = getRows($sql);
@@ -101,7 +112,9 @@ include '../includes/sidebar.php';
                                 <th style="white-space:nowrap;min-width:100px;">Date</th>
                                 <th>Total (PKR)</th>
                                 <th>Discount</th>
-                                <th>Net Amount</th>
+                                <th>Selling Value (Net)</th>
+                                <th>Cost Value</th>
+                                <th>Profit</th>
                                 <th>Payment</th>
                                 <th>Actions</th>
                             </tr>
@@ -117,7 +130,13 @@ include '../includes/sidebar.php';
                                         <td><?php echo formatDate($sale['sale_date']); ?></td>
                                         <td><?php echo number_format($sale['total_amount'], 2); ?></td>
                                         <td><?php echo number_format($sale['discount'] ?? 0, 2); ?></td>
-                                        <td><strong><?php echo number_format($sale['net_amount'], 2); ?></strong></td>
+                                        <?php $saleSelling = (float)$sale['net_amount'] ?: (float)$sale['final_amount']; ?>
+                                        <td><strong><?php echo number_format($saleSelling, 2); ?></strong></td>
+                                        <td><?php echo number_format($sale['cost_value'], 2); ?></td>
+                                        <?php $saleProfit = $saleSelling - (float)$sale['cost_value']; ?>
+                                        <td class="<?php echo $saleProfit < 0 ? 'text-danger' : 'text-success'; ?>">
+                                            <strong><?php echo number_format($saleProfit, 2); ?></strong>
+                                        </td>
                                         <td>
                                             <span class="badge badge-status badge-<?php echo strtolower($sale['payment_status']); ?>">
                                                 <?php echo ucfirst($sale['payment_status']); ?>
@@ -146,6 +165,27 @@ include '../includes/sidebar.php';
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </tbody>
+                        <tfoot>
+                            <?php
+                                $totTotal = $totDiscount = $totNet = $totCost = $totProfit = 0;
+                                foreach ($sales as $saleRow) {
+                                    $totTotal += (float)$saleRow['total_amount'];
+                                    $totDiscount += (float)($saleRow['discount'] ?? 0);
+                                    $totNet += (float)$saleRow['net_amount'] ?: (float)$saleRow['final_amount'];
+                                    $totCost += (float)$saleRow['cost_value'];
+                                }
+                                $totProfit = $totNet - $totCost;
+                            ?>
+                            <tr class="table-light fw-bold">
+                                <td colspan="4" class="text-end">Total</td>
+                                <td><?php echo number_format($totTotal, 2); ?></td>
+                                <td><?php echo number_format($totDiscount, 2); ?></td>
+                                <td><?php echo number_format($totNet, 2); ?></td>
+                                <td><?php echo number_format($totCost, 2); ?></td>
+                                <td class="<?php echo $totProfit < 0 ? 'text-danger' : 'text-success'; ?>"><?php echo number_format($totProfit, 2); ?></td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>

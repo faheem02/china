@@ -23,7 +23,17 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $result = modifyData("DELETE FROM expenses WHERE id = ?", 'i', [$id]);
     if ($result !== false) {
         setFlash('Expense deleted successfully!', 'success');
-        header('Location: ' . $_SERVER['PHP_SELF']);
+        $redirectUrl = 'expenses.php';
+        $ret = [];
+        if (!empty($_GET['from_date'])) $ret['from_date'] = $_GET['from_date'];
+        if (!empty($_GET['to_date'])) $ret['to_date'] = $_GET['to_date'];
+        if (!empty($_GET['category'])) $ret['category'] = $_GET['category'];
+        if (!empty($_GET['paid_by'])) $ret['paid_by'] = $_GET['paid_by'];
+        if (isset($_GET['all']) && $_GET['all'] == '1') $ret['all'] = '1';
+        if (!empty($ret)) {
+            $redirectUrl .= '?' . http_build_query($ret);
+        }
+        header('Location: ' . $redirectUrl);
         exit;
     } else {
         $message = 'Error deleting expense!';
@@ -39,10 +49,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $description = trim($_POST['description']);
     $amount = (float)($_POST['amount'] ?? 0);
     $paid_by = trim($_POST['paid_by'] ?? 'cash');
-    if (!in_array($paid_by, ['cash', 'bank', 'credit'], true)) {
+    if (!in_array($paid_by, ['cash', 'bank'], true)) {
         $paid_by = 'cash';
     }
-    $paid_amount = ($paid_by === 'credit') ? 0 : $amount;
+    $paid_amount = $amount;
     $bank_id = ($paid_by === 'bank') ? (int)($_POST['bank_id'] ?? 0) : null;
     $bank_name = null;
     if ($bank_id > 0) {
@@ -131,11 +141,122 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Fetch data
-$expenses = getRows("SELECT * FROM expenses ORDER BY id DESC");
+// Date filter handling: default to today's date
+$today = date('Y-m-d');
+$isAll = isset($_GET['all']) && $_GET['all'] == '1';
+
+if ($isAll) {
+    $fromDate = '';
+    $toDate = '';
+} elseif (isset($_GET['from_date']) || isset($_GET['to_date'])) {
+    $fromDate = trim($_GET['from_date'] ?? '');
+    $toDate = trim($_GET['to_date'] ?? '');
+} else {
+    // Default to today's expenses
+    $fromDate = $today;
+    $toDate = $today;
+}
+
+if (!empty($fromDate) && !empty($toDate) && $fromDate > $toDate) {
+    $temp = $fromDate;
+    $fromDate = $toDate;
+    $toDate = $temp;
+}
+
+$categoryFilter = trim($_GET['category'] ?? '');
+$paidByFilter = trim($_GET['paid_by'] ?? '');
+
+$whereClauses = [];
+$params = [];
+$types = '';
+
+if (!empty($fromDate) && !empty($toDate)) {
+    $whereClauses[] = "expense_date BETWEEN ? AND ?";
+    $params[] = $fromDate;
+    $params[] = $toDate;
+    $types .= 'ss';
+} elseif (!empty($fromDate)) {
+    $whereClauses[] = "expense_date >= ?";
+    $params[] = $fromDate;
+    $types .= 's';
+} elseif (!empty($toDate)) {
+    $whereClauses[] = "expense_date <= ?";
+    $params[] = $toDate;
+    $types .= 's';
+}
+
+if (!empty($categoryFilter)) {
+    $whereClauses[] = "category = ?";
+    $params[] = $categoryFilter;
+    $types .= 's';
+}
+
+if (!empty($paidByFilter)) {
+    if ($paidByFilter === 'bank') {
+        $whereClauses[] = "paid_by IN ('bank', 'bank_transfer', 'cheque')";
+    } elseif ($paidByFilter === 'cash') {
+        $whereClauses[] = "(paid_by = 'cash' OR paid_by = '' OR paid_by IS NULL)";
+    }
+}
+
+$whereSql = !empty($whereClauses) ? "WHERE " . implode(" AND ", $whereClauses) : "";
+
+if (!empty($params)) {
+    $expenses = getRows("SELECT * FROM expenses $whereSql ORDER BY expense_date DESC, id DESC", $types, $params);
+    $filteredSummary = getRow("SELECT COALESCE(SUM(amount), 0) AS total_amount, COUNT(*) AS cnt FROM expenses $whereSql", $types, $params);
+} else {
+    $expenses = getRows("SELECT * FROM expenses ORDER BY expense_date DESC, id DESC");
+    $filteredSummary = getRow("SELECT COALESCE(SUM(amount), 0) AS total_amount, COUNT(*) AS cnt FROM expenses");
+}
+
 $expenseHeads = getRows("SELECT * FROM expense_categories WHERE status = 'active' ORDER BY category_name");
 $bankAccounts = getActiveBankAccounts();
-$totalExpenses = getRow("SELECT COALESCE(SUM(amount),0) AS total FROM expenses");
+
+$filteredTotal = (float)($filteredSummary['total_amount'] ?? 0);
+$filteredCount = (int)($filteredSummary['cnt'] ?? count($expenses));
+
+$filteredCashTotal = 0;
+$filteredBankTotal = 0;
+foreach ($expenses as $expItem) {
+    if (in_array($expItem['paid_by'], ['bank', 'bank_transfer', 'cheque'], true)) {
+        $filteredBankTotal += (float)$expItem['amount'];
+    } else {
+        $filteredCashTotal += (float)$expItem['amount'];
+    }
+}
+
+// All-time totals for reference
+$allTimeSummary = getRow("SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS cnt FROM expenses");
+$allTimeTotal = (float)($allTimeSummary['total'] ?? 0);
+$allTimeCount = (int)($allTimeSummary['cnt'] ?? 0);
+
+// Build print and URL query strings
+$filterQueryArgs = [];
+if (!empty($fromDate)) $filterQueryArgs['from_date'] = $fromDate;
+if (!empty($toDate)) $filterQueryArgs['to_date'] = $toDate;
+if (!empty($categoryFilter)) $filterQueryArgs['category'] = $categoryFilter;
+if (!empty($paidByFilter)) $filterQueryArgs['paid_by'] = $paidByFilter;
+if ($isAll) $filterQueryArgs['all'] = '1';
+
+$printUrl = 'expenses_print.php' . (!empty($filterQueryArgs) ? '?' . http_build_query($filterQueryArgs) : '');
+$preserveQueryStr = !empty($filterQueryArgs) ? '&' . http_build_query($filterQueryArgs) : '';
+
+// Period display label
+if ($isAll || (empty($fromDate) && empty($toDate))) {
+    $periodLabel = 'All Time';
+    $periodBadge = 'All Time';
+} elseif ($fromDate === $toDate) {
+    if ($fromDate === $today) {
+        $periodLabel = 'Today (' . formatDate($fromDate) . ')';
+        $periodBadge = 'Today: ' . formatDate($fromDate);
+    } else {
+        $periodLabel = formatDate($fromDate);
+        $periodBadge = formatDate($fromDate);
+    }
+} else {
+    $periodLabel = formatDate($fromDate) . ' to ' . formatDate($toDate);
+    $periodBadge = formatDate($fromDate) . ' - ' . formatDate($toDate);
+}
 
 // Edit data
 $editExpense = null;
@@ -159,61 +280,150 @@ include '../includes/sidebar.php';
     </div>
 </div>
 
+<!-- Stat Cards -->
 <div class="row mb-3">
-    <div class="col-md-6">
+    <div class="col-lg-3 col-sm-6 mb-2">
         <div class="stat-card" style="border-left-color:#dc3545;">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <div class="stat-number text-danger"><?php echo formatCurrency($totalExpenses['total']); ?></div>
-                    <div class="stat-label">Total Expenses</div>
+                    <div class="stat-number text-danger"><?php echo formatCurrency($filteredTotal); ?></div>
+                    <div class="stat-label">Expenses (<?php echo htmlspecialchars($periodBadge); ?>)</div>
+                    <?php if (!$isAll && ($fromDate !== '' || $toDate !== '')): ?>
+                        <div class="small text-muted" style="font-size:11px;">All Time: <?php echo formatCurrency($allTimeTotal); ?></div>
+                    <?php endif; ?>
                 </div>
                 <div class="stat-icon" style="color:#dc3545;"><i class="fas fa-money-bill-wave"></i></div>
             </div>
         </div>
     </div>
-    <div class="col-md-6">
+    <div class="col-lg-3 col-sm-6 mb-2">
+        <div class="stat-card" style="border-left-color:#198754;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="stat-number text-success"><?php echo formatCurrency($filteredCashTotal); ?></div>
+                    <div class="stat-label">Cash Expenses</div>
+                </div>
+                <div class="stat-icon" style="color:#198754;"><i class="fas fa-wallet"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-sm-6 mb-2">
         <div class="stat-card" style="border-left-color:#0d6efd;">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <div class="stat-number text-primary"><?php echo count($expenses); ?></div>
-                    <div class="stat-label">Total Entries</div>
+                    <div class="stat-number text-primary"><?php echo formatCurrency($filteredBankTotal); ?></div>
+                    <div class="stat-label">Bank Expenses</div>
                 </div>
-                <div class="stat-icon" style="color:#0d6efd;"><i class="fas fa-receipt"></i></div>
+                <div class="stat-icon" style="color:#0d6efd;"><i class="fas fa-university"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-sm-6 mb-2">
+        <div class="stat-card" style="border-left-color:#6f42c1;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="stat-number" style="color:#6f42c1;"><?php echo number_format($filteredCount); ?></div>
+                    <div class="stat-label">Total Entries</div>
+                    <?php if (!$isAll && ($fromDate !== '' || $toDate !== '')): ?>
+                        <div class="small text-muted" style="font-size:11px;">All Time: <?php echo number_format($allTimeCount); ?></div>
+                    <?php endif; ?>
+                </div>
+                <div class="stat-icon" style="color:#6f42c1;"><i class="fas fa-receipt"></i></div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Top Action Buttons -->
 <div class="row mb-3">
-    <div class="col-12 d-flex flex-wrap gap-2">
-        <a href="add_expense_head.php" class="btn btn-primary">
-            <i class="fas fa-plus me-1"></i>Record New Expense
-        </a>
-        <a href="expense_heads.php" class="btn btn-outline-primary">
-            <i class="fas fa-tags me-1"></i>Expense Categories
-        </a>
+    <div class="col-12 d-flex flex-wrap gap-2 align-items-center justify-content-between">
+        <div class="d-flex flex-wrap gap-2">
+            <a href="add_expense_head.php" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>Record New Expense
+            </a>
+            <a href="expense_heads.php" class="btn btn-outline-primary">
+                <i class="fas fa-tags me-1"></i>Expense Categories
+            </a>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="<?php echo htmlspecialchars($printUrl); ?>" target="_blank" class="btn btn-danger">
+                <i class="fas fa-print me-1"></i>Print Expense
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Date Filter Card -->
+<div class="card mb-3 shadow-sm no-print">
+    <div class="card-body">
+        <form method="GET" action="expenses.php" id="expenseFilterForm">
+            <input type="hidden" name="all" id="filter_all" value="<?php echo $isAll ? '1' : '0'; ?>">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label fw-semibold small mb-1">From Date</label>
+                    <input type="date" class="form-control form-control-sm" name="from_date" id="filter_from_date" value="<?php echo htmlspecialchars($fromDate); ?>">
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label fw-semibold small mb-1">To Date</label>
+                    <input type="date" class="form-control form-control-sm" name="to_date" id="filter_to_date" value="<?php echo htmlspecialchars($toDate); ?>">
+                </div>
+                <div class="col-md-2 col-sm-6">
+                    <label class="form-label fw-semibold small mb-1">Category</label>
+                    <select class="form-select form-select-sm" name="category" id="filter_category">
+                        <option value="">All Categories</option>
+                        <?php foreach ($expenseHeads as $head): ?>
+                            <option value="<?php echo htmlspecialchars($head['category_name']); ?>" <?php echo ($categoryFilter === $head['category_name']) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($head['category_name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-2 col-sm-6">
+                    <label class="form-label fw-semibold small mb-1">Payment Method</label>
+                    <select class="form-select form-select-sm" name="paid_by" id="filter_paid_by">
+                        <option value="">All Methods</option>
+                        <option value="cash" <?php echo $paidByFilter === 'cash' ? 'selected' : ''; ?>>Cash</option>
+                        <option value="bank" <?php echo $paidByFilter === 'bank' ? 'selected' : ''; ?>>Bank</option>
+                    </select>
+                </div>
+                <div class="col-md-2 col-sm-12 d-flex gap-1">
+                    <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
+                        <i class="fas fa-search me-1"></i>Filter
+                    </button>
+                    <a href="expenses.php" class="btn btn-outline-secondary btn-sm" title="Reset to Today">
+                        <i class="fas fa-sync-alt"></i>
+                    </a>
+                </div>
+            </div>
+        </form>
     </div>
 </div>
 
 <div class="row">
     <div class="col-12">
         <div class="card">
-            <div class="card-header" style="background:#1a2332;color:#fff;">
-                <i class="fas fa-money-bill-wave me-2"></i>Expenses List
+            <div class="card-header d-flex justify-content-between align-items-center" style="background:#1a2332;color:#fff;">
+                <div>
+                    <i class="fas fa-money-bill-wave me-2"></i>Expenses List
+                    <span class="badge bg-light text-dark ms-2 fw-semibold"><?php echo htmlspecialchars($periodBadge); ?></span>
+                </div>
+                <div>
+                    <span class="text-white-50 small"><?php echo count($expenses); ?> record<?php echo count($expenses) === 1 ? '' : 's'; ?></span>
+                </div>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover" id="expenseTable">
+                    <table class="table table-striped table-hover align-middle" id="expenseTable">
                         <thead>
                             <tr>
-                                <th>#</th>
+                                <th style="width: 50px;">#</th>
                                 <th>Expense No</th>
                                 <th>Date</th>
                                 <th>Expense Category</th>
                                 <th>Description</th>
-                                <th>Amount</th>
+                                <th style="text-align: right;">Amount</th>
                                 <th>Payment</th>
-                                <th>Actions</th>
+                                <th style="width: 90px; text-align: center;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -224,22 +434,20 @@ include '../includes/sidebar.php';
                                     <td><?php echo formatDate($exp['expense_date']); ?></td>
                                     <td><span class="badge bg-primary"><?php echo htmlspecialchars($exp['category']); ?></span></td>
                                     <td><?php echo htmlspecialchars($exp['description'] ?: '-'); ?></td>
-                                    <td><strong><?php echo formatCurrency($exp['amount']); ?></strong></td>
+                                    <td style="text-align: right;"><strong><?php echo formatCurrency($exp['amount']); ?></strong></td>
                                     <td>
                                         <?php if (in_array($exp['paid_by'], ['bank', 'bank_transfer', 'cheque'], true)): ?>
                                             <span class="badge bg-info text-dark"><i class="fas fa-university me-1"></i><?php echo htmlspecialchars($exp['bank_name'] ?: 'Bank'); ?></span>
-                                        <?php elseif ($exp['paid_by'] === 'credit'): ?>
-                                            <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>Credit</span>
                                         <?php else: ?>
                                             <span class="badge bg-success"><i class="fas fa-money-bill-wave me-1"></i>Cash</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td>
+                                    <td style="text-align: center;">
                                         <div class="btn-group btn-group-sm">
                                             <a href="add_expense_head.php?edit_expense=<?php echo $exp['id']; ?>" class="btn btn-warning" title="Edit">
                                                 <i class="fas fa-edit"></i>
                                             </a>
-                                            <a href="?delete=<?php echo $exp['id']; ?>" class="btn btn-danger delete-confirm" title="Delete">
+                                            <a href="?delete=<?php echo $exp['id']; ?><?php echo $preserveQueryStr; ?>" class="btn btn-danger delete-confirm" title="Delete">
                                                 <i class="fas fa-trash"></i>
                                             </a>
                                         </div>
@@ -247,6 +455,13 @@ include '../includes/sidebar.php';
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
+                        <tfoot>
+                            <tr class="table-light fw-bold">
+                                <td colspan="5" class="text-end">Total Amount (<?php echo htmlspecialchars($periodBadge); ?>):</td>
+                                <td style="text-align: right;" class="text-danger"><?php echo formatCurrency($filteredTotal); ?></td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -331,12 +546,20 @@ function toggleModalBank(method) {
     }
 }
 
+
 $(document).ready(function() {
     <?php if ($editExpense): ?>
         var modal = new bootstrap.Modal(document.getElementById('expenseModal'));
         modal.show();
     <?php endif; ?>
-    $('#expenseTable').DataTable({ pageLength:25, order:[[0,'desc']], language:{ search:'Search Expenses:', emptyTable:'No expenses found' } });
+    $('#expenseTable').DataTable({
+        pageLength: 25,
+        order: [],
+        language: {
+            search: 'Search Expenses:',
+            emptyTable: 'No expenses found for the selected date filter'
+        }
+    });
     $('.delete-confirm').on('click', function(e) { if (!confirm('Delete this expense?')) e.preventDefault(); });
 });
 </script>

@@ -91,7 +91,22 @@ foreach ($tablesWithBank as $tbl => $colDefs) {
     }
 }
 
+// Ensure minimum_stock column exists in raw_materials and finished_goods
+$rmTableChk = $conn->query("SHOW TABLES LIKE 'raw_materials'");
+if ($rmTableChk && $rmTableChk->num_rows > 0) {
+    $rmMinCol = $conn->query("SHOW COLUMNS FROM `raw_materials` LIKE 'minimum_stock'");
+    if ($rmMinCol && $rmMinCol->num_rows === 0) {
+        $conn->query("ALTER TABLE `raw_materials` ADD COLUMN `minimum_stock` DECIMAL(18,2) NOT NULL DEFAULT 0.00 AFTER `current_stock`");
+    }
+}
 
+$fgTableChk = $conn->query("SHOW TABLES LIKE 'finished_goods'");
+if ($fgTableChk && $fgTableChk->num_rows > 0) {
+    $fgMinCol = $conn->query("SHOW COLUMNS FROM `finished_goods` LIKE 'minimum_stock'");
+    if ($fgMinCol && $fgMinCol->num_rows === 0) {
+        $conn->query("ALTER TABLE `finished_goods` ADD COLUMN `minimum_stock` DECIMAL(18,2) NOT NULL DEFAULT 0.00 AFTER `current_stock`");
+    }
+}
 /**
  * Execute prepared statement with parameters
  * @param string $sql SQL query with placeholders

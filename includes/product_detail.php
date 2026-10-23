@@ -51,6 +51,20 @@ $sql = "SELECT p.*, fg.product_name
         LIMIT 20";
 $productionHistory = getRows($sql, 'i', [$productId]);
 
+// Determine where this product came from (Chinese import vs local supplier)
+$chinesePurchase = getRow("SELECT cs.supplier_name, ip.purchase_no, ip.purchase_date, ipi.quantity, ipi.unit_price_pkr
+        FROM import_purchase_items ipi
+        INNER JOIN import_purchases ip ON ip.id = ipi.purchase_id
+        INNER JOIN chinese_suppliers cs ON cs.id = ip.supplier_id
+        WHERE ipi.item_type = 'finished_good' AND ipi.material_id = ?
+        ORDER BY ipi.id DESC LIMIT 1", 'i', [$productId]);
+$localPurchase = getRow("SELECT ls.supplier_name, lp.purchase_no, lp.purchase_date, lpi.quantity, lpi.unit_price
+        FROM local_purchase_items lpi
+        INNER JOIN local_purchases lp ON lp.id = lpi.purchase_id
+        INNER JOIN local_suppliers ls ON ls.id = lp.supplier_id
+        WHERE lpi.item_type = 'finished_good' AND lpi.material_id = ?
+        ORDER BY lpi.id DESC LIMIT 1", 'i', [$productId]);
+
 // Calculate statistics
 $totalSales = 0;
 $totalRevenue = 0;
@@ -139,6 +153,31 @@ include '../includes/sidebar.php';
                             <tr>
                                 <th>Category</th>
                                 <td><?php echo htmlspecialchars($product['category']) ?: 'N/A'; ?></td>
+                            </tr>
+                            <tr>
+                                <th>Source / Supplier</th>
+                                <td>
+                                    <?php if ($chinesePurchase): ?>
+                                        <span class="badge bg-info text-dark"><i class="fas fa-plane me-1"></i>Chinese</span>
+                                        <strong class="ms-1"><?php echo htmlspecialchars($chinesePurchase['supplier_name']); ?></strong>
+                                        <small class="d-block text-muted">
+                                            <?php echo htmlspecialchars($chinesePurchase['purchase_no']); ?>
+                                            <?php if (!empty($chinesePurchase['purchase_date'])): ?> &middot; <?php echo formatDate($chinesePurchase['purchase_date']); ?><?php endif; ?>
+                                        </small>
+                                    <?php endif; ?>
+                                    <?php if ($localPurchase): ?>
+                                        <span class="badge bg-success"><i class="fas fa-truck me-1"></i>Local</span>
+                                        <strong class="ms-1"><?php echo htmlspecialchars($localPurchase['supplier_name']); ?></strong>
+                                        <small class="d-block text-muted">
+                                            <?php echo htmlspecialchars($localPurchase['purchase_no']); ?>
+                                            <?php if (!empty($localPurchase['purchase_date'])): ?> &middot; <?php echo formatDate($localPurchase['purchase_date']); ?><?php endif; ?>
+                                        </small>
+                                    <?php endif; ?>
+                                    <?php if (!$chinesePurchase && !$localPurchase): ?>
+                                        <span class="badge bg-secondary"><i class="fas fa-industry me-1"></i>In-house / Not Recorded</span>
+                                        <small class="d-block text-muted">No purchase record found (added manually or received from production)</small>
+                                    <?php endif; ?>
+                                </td>
                             </tr>
                             <tr>
                                 <th>Unit</th>

@@ -104,8 +104,10 @@ $movements = getRows("SELECT mii.*, m.material_name, mi.issue_no, mi.issue_date,
                                 <th>Material</th>
                                 <th>Unit</th>
                                 <th>Stock</th>
-                                <th>Price (PKR)</th>
-                                <th>Value (PKR)</th>
+                                <th>Cost Price (PKR)</th>
+                                <th>Value (Cost)</th>
+                                <th>Selling Price (PKR)</th>
+                                <th>Value (Selling)</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -119,6 +121,8 @@ $movements = getRows("SELECT mii.*, m.material_name, mi.issue_no, mi.issue_date,
                                 <td><?php echo number_format($m['current_stock'], 2); ?></td>
                                 <td class="text-end"><?php echo formatCurrency($m['purchase_price_pkr']); ?></td>
                                 <td class="text-end"><?php echo formatCurrency($m['current_stock'] * $m['purchase_price_pkr']); ?></td>
+                                <td class="text-end"><?php echo formatCurrency($m['selling_price'] ?: $m['purchase_price_pkr']); ?></td>
+                                <td class="text-end"><?php echo formatCurrency($m['current_stock'] * ($m['selling_price'] ?: $m['purchase_price_pkr'])); ?></td>
                                 <td>
                                     <?php if ($m['current_stock'] <= 0): ?>
                                         <span class="badge bg-danger">Out of Stock</span>
@@ -135,11 +139,17 @@ $movements = getRows("SELECT mii.*, m.material_name, mi.issue_no, mi.issue_date,
                                 <td colspan="5" class="text-end">Raw Materials Total</td>
                                 <td class="text-end"><?php
                                     $rawMaterialsValue = 0;
+                                    $rawMaterialsSaleValue = 0;
                                     foreach ($materials as $material) {
-                                        $rawMaterialsValue += (float)$material['current_stock'] * (float)$material['purchase_price_pkr'];
+                                        $materialCost = (float)$material['purchase_price_pkr'];
+                                        $materialSell = (float)($material['selling_price'] ?: $materialCost);
+                                        $rawMaterialsValue += (float)$material['current_stock'] * $materialCost;
+                                        $rawMaterialsSaleValue += (float)$material['current_stock'] * $materialSell;
                                     }
                                     echo formatCurrency($rawMaterialsValue);
                                 ?></td>
+                                <td></td>
+                                <td class="text-end"><?php echo formatCurrency($rawMaterialsSaleValue); ?></td>
                                 <td></td>
                             </tr>
                         </tfoot>
@@ -171,6 +181,7 @@ $movements = getRows("SELECT mii.*, m.material_name, mi.issue_no, mi.issue_date,
                                 <th>Selling Price</th>
                                 <th>Cost Price</th>
                                 <th>Value (Cost)</th>
+                                <th>Value (Selling)</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -186,6 +197,7 @@ $movements = getRows("SELECT mii.*, m.material_name, mi.issue_no, mi.issue_date,
                                 <td class="text-end"><?php echo formatCurrency($p['selling_price']); ?></td>
                                 <td class="text-end"><?php echo formatCurrency($p['cost_price']); ?></td>
                                 <td class="text-end"><?php echo formatCurrency($p['current_stock'] * $p['cost_price']); ?></td>
+                                <td class="text-end"><?php echo formatCurrency($p['current_stock'] * $p['selling_price']); ?></td>
                                 <td>
                                     <?php if ($p['current_stock'] <= 0): ?>
                                         <span class="badge bg-danger">Out of Stock</span>
@@ -201,14 +213,17 @@ $movements = getRows("SELECT mii.*, m.material_name, mi.issue_no, mi.issue_date,
                         </tbody>
                         <tfoot>
                             <tr class="table-secondary fw-bold">
-                                <td colspan="7" class="text-end">Finished Goods Total (Cost)</td>
+                                <td colspan="7" class="text-end">Finished Goods Total</td>
                                 <td class="text-end"><?php
                                     $finishedGoodsValue = 0;
+                                    $finishedGoodsSaleValue = 0;
                                     foreach ($products as $product) {
                                         $finishedGoodsValue += (float)$product['current_stock'] * (float)$product['cost_price'];
+                                        $finishedGoodsSaleValue += (float)$product['current_stock'] * (float)$product['selling_price'];
                                     }
                                     echo formatCurrency($finishedGoodsValue);
                                 ?></td>
+                                <td class="text-end"><?php echo formatCurrency($finishedGoodsSaleValue); ?></td>
                                 <td></td>
                             </tr>
                         </tfoot>

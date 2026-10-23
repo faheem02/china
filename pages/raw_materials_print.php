@@ -282,10 +282,15 @@ if ($materialId > 0) {
 // ══════════════════════════════════════════════════════════════
 $fromDate = isset($_GET['from_date']) && $_GET['from_date'] !== '' ? trim($_GET['from_date']) : '';
 $toDate = isset($_GET['to_date']) && $_GET['to_date'] !== '' ? trim($_GET['to_date']) : '';
+$isLowStock = isset($_GET['low_stock']) && $_GET['low_stock'] == '1';
 
 $where = [];
 $params = [];
 $types = '';
+
+if ($isLowStock) {
+    $where[] = "((r.current_stock <= r.minimum_stock AND r.minimum_stock > 0) OR r.current_stock <= 0)";
+}
 
 if ($fromDate !== '') {
     $where[] = "DATE(r.date_time) >= ?";
@@ -405,8 +410,13 @@ body { background: #f0f2f5; margin: 0; padding: 0; color: #212529; }
 <div class="print-a4" id="printContent">
     <?php include '../includes/print_branding.php'; ?>
 
-    <div class="inv-title">RAW MATERIALS STOCK &amp; VALUATION REPORT</div>
+    <div class="inv-title">
+        <?php echo $isLowStock ? 'RAW MATERIALS REPORT &mdash; LOW STOCK &amp; OUT OF STOCK ALERT' : 'RAW MATERIALS STOCK &amp; VALUATION REPORT'; ?>
+    </div>
     <div class="inv-subtitle">
+        <?php if ($isLowStock): ?>
+            <span class="badge bg-warning text-dark me-2" style="font-size:12px;">Alert: Filtered for Low Stock &amp; Out of Stock Items</span>
+        <?php endif; ?>
         <?php if ($fromDate !== '' && $toDate !== ''): ?>
             <strong>Filter Period:</strong> <?php echo formatDate($fromDate); ?> &mdash; <?php echo formatDate($toDate); ?>
         <?php elseif ($fromDate !== ''): ?>
@@ -414,7 +424,7 @@ body { background: #f0f2f5; margin: 0; padding: 0; color: #212529; }
         <?php elseif ($toDate !== ''): ?>
             <strong>Filter Period:</strong> Up to <?php echo formatDate($toDate); ?>
         <?php else: ?>
-            <strong>Scope:</strong> Complete Inventory &mdash; All Records
+            <strong>Scope:</strong> <?php echo $isLowStock ? 'All Reorder Alert Items' : 'Complete Inventory &mdash; All Records'; ?>
         <?php endif; ?>
     </div>
 
@@ -473,7 +483,24 @@ body { background: #f0f2f5; margin: 0; padding: 0; color: #212529; }
                     <td><?php echo htmlspecialchars($m['category'] ?: '-'); ?></td>
                     <td><?php echo htmlspecialchars($m['unit'] ?: 'units'); ?></td>
                     <td><?php echo !empty($m['date_time']) ? date('d-m-Y', strtotime($m['date_time'])) : '-'; ?></td>
-                    <td style="text-align:right" class="fw-bold text-primary"><?php echo number_format((float)$m['current_stock'], 2); ?></td>
+                    <td style="text-align:right">
+                        <?php 
+                        $cStock = (float)$m['current_stock'];
+                        $mStock = (float)$m['minimum_stock'];
+                        $isOut = ($cStock <= 0);
+                        $isLow = (!$isOut && $mStock > 0 && $cStock <= $mStock);
+                        ?>
+                        <span class="fw-bold <?php echo $isOut ? 'text-danger' : ($isLow ? 'text-danger' : 'text-primary'); ?>">
+                            <?php echo number_format($cStock, 2); ?>
+                        </span>
+                        <?php if ($isOut): ?>
+                            <div style="font-size:9.5px;color:#dc3545;font-weight:600;">[Out of Stock]</div>
+                        <?php elseif ($isLow): ?>
+                            <div style="font-size:9.5px;color:#d39e00;font-weight:600;">[Low &middot; Min: <?php echo number_format($mStock, 2); ?>]</div>
+                        <?php elseif ($mStock > 0): ?>
+                            <div style="font-size:9px;color:#777;">Min: <?php echo number_format($mStock, 2); ?></div>
+                        <?php endif; ?>
+                    </td>
                     <td style="text-align:right"><?php echo formatCurrency($m['purchase_price_pkr']); ?></td>
                     <td style="text-align:right">
                         <?php if ($m['supplier_type'] === 'chinese' && !empty($m['purchase_price_cny'])): ?>

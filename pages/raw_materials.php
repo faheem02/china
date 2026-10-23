@@ -35,11 +35,16 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
 
 $fromDate = isset($_GET['from_date']) && $_GET['from_date'] !== '' ? trim($_GET['from_date']) : '';
 $toDate = isset($_GET['to_date']) && $_GET['to_date'] !== '' ? trim($_GET['to_date']) : '';
+$isLowStock = isset($_GET['low_stock']) && $_GET['low_stock'] == '1';
 
-// Build query with optional date filter
+// Build query with optional date and low stock filter
 $where = [];
 $params = [];
 $types = '';
+
+if ($isLowStock) {
+    $where[] = "((r.current_stock <= r.minimum_stock AND r.minimum_stock > 0) OR r.current_stock <= 0)";
+}
 
 if ($fromDate !== '') {
     $where[] = "DATE(r.date_time) >= ?";
@@ -65,6 +70,7 @@ $materials = !empty($params) ? getRows($sql, $types, $params) : getRows($sql);
 
 // Build print URL preserving active filter
 $printParams = [];
+if ($isLowStock) $printParams['low_stock'] = '1';
 if ($fromDate !== '') $printParams['from_date'] = $fromDate;
 if ($toDate !== '') $printParams['to_date'] = $toDate;
 $printUrl = 'raw_materials_print.php' . (!empty($printParams) ? '?' . http_build_query($printParams) : '');
@@ -127,6 +133,16 @@ if ($fromDate !== '' || $toDate !== '') {
     $totalIssuedValue = (float)($miStats['issued_value'] ?? 0);
 }
 
+// Low stock statistics across all active raw materials
+$lowStockStats = getRow("SELECT 
+        COUNT(CASE WHEN (current_stock <= minimum_stock AND minimum_stock > 0) OR current_stock <= 0 THEN 1 END) AS total_low,
+        COUNT(CASE WHEN current_stock <= 0 THEN 1 END) AS out_of_stock,
+        COUNT(CASE WHEN current_stock > 0 AND current_stock <= minimum_stock AND minimum_stock > 0 THEN 1 END) AS low_stock
+    FROM raw_materials WHERE status = 'active'");
+$totalLowAlerts = (int)($lowStockStats['total_low'] ?? 0);
+$outOfStockCount = (int)($lowStockStats['out_of_stock'] ?? 0);
+$lowStockCount = (int)($lowStockStats['low_stock'] ?? 0);
+
 include '../includes/header.php';
 include '../includes/sidebar.php';
 ?>
@@ -155,12 +171,24 @@ include '../includes/sidebar.php';
 </div>
 
 <div class="row mb-3 align-items-center">
-    <div class="col-md-6 mb-2 mb-md-0">
+    <div class="col-md-7 mb-2 mb-md-0 d-flex flex-wrap gap-2 align-items-center">
         <a href="add_raw_materials.php" class="btn btn-primary">
-            <i class="fas fa-plus me-2"></i>Add New Material
+            <i class="fas fa-plus me-1"></i>Add New Material
         </a>
+        <a href="raw_materials.php?low_stock=1<?php echo ($fromDate ? '&from_date=' . urlencode($fromDate) : '') . ($toDate ? '&to_date=' . urlencode($toDate) : ''); ?>" 
+           class="btn <?php echo $isLowStock ? 'btn-warning text-dark fw-bold' : 'btn-outline-warning text-dark'; ?>">
+            <i class="fas fa-exclamation-triangle me-1"></i>Low Stock Items
+            <?php if ($totalLowAlerts > 0): ?>
+                <span class="badge bg-danger text-white ms-1"><?php echo $totalLowAlerts; ?></span>
+            <?php endif; ?>
+        </a>
+        <?php if ($isLowStock || $fromDate !== '' || $toDate !== ''): ?>
+            <a href="raw_materials.php" class="btn btn-outline-secondary btn-sm" title="Show All Materials">
+                <i class="fas fa-undo me-1"></i>Show All
+            </a>
+        <?php endif; ?>
     </div>
-    <div class="col-md-6 text-md-end no-print">
+    <div class="col-md-5 text-md-end no-print">
         <a href="<?php echo $printUrl; ?>" target="_blank" class="btn btn-danger">
             <i class="fas fa-print me-2"></i>Print Report
         </a>
@@ -171,6 +199,9 @@ include '../includes/sidebar.php';
 <div class="card shadow-sm mb-3 no-print">
     <div class="card-body py-2 px-3">
         <form method="GET" action="raw_materials.php" class="row g-2 align-items-end">
+            <?php if ($isLowStock): ?>
+                <input type="hidden" name="low_stock" value="1">
+            <?php endif; ?>
             <div class="col-md-4 col-sm-6">
                 <label class="form-label small mb-1 fw-semibold text-muted">From Date</label>
                 <input type="date" class="form-control form-control-sm" name="from_date" value="<?php echo htmlspecialchars($fromDate); ?>">
@@ -183,7 +214,7 @@ include '../includes/sidebar.php';
                 <button type="submit" class="btn btn-primary btn-sm flex-fill">
                     <i class="fas fa-search me-1"></i>Filter
                 </button>
-                <?php if ($fromDate !== '' || $toDate !== ''): ?>
+                <?php if ($fromDate !== '' || $toDate !== '' || $isLowStock): ?>
                     <a href="raw_materials.php" class="btn btn-outline-secondary btn-sm" title="Clear filter">
                         <i class="fas fa-undo me-1"></i>Reset
                     </a>
@@ -194,59 +225,82 @@ include '../includes/sidebar.php';
 </div>
 
 <!-- Summary Cards -->
-<div class="row mb-3">
-    <div class="col-md-3 col-sm-6 mb-3 mb-md-0">
-        <div class="card h-100" style="border-left: 4px solid #6c757d;">
-            <div class="card-body">
+<div class="row g-2 mb-3">
+    <div class="col-xl col-md-4 col-sm-6 mb-2">
+        <div class="card h-100 shadow-sm" style="border-left: 4px solid #6c757d;">
+            <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="text-muted small">Raw Material Stock Qty</div>
-                        <h4 class="mb-0"><?php echo number_format($totalStockQty, 2); ?></h4>
-                        <div class="text-muted small"><?php echo ($fromDate || $toDate) ? 'For filtered records' : 'Qty available in stock'; ?></div>
+                        <div class="text-muted small">Total Stock Qty</div>
+                        <h4 class="mb-0 fw-bold"><?php echo number_format($totalStockQty, 2); ?></h4>
+                        <div class="text-muted small" style="font-size:11px;"><?php echo ($fromDate || $toDate || $isLowStock) ? 'Filtered records' : 'Available in stock'; ?></div>
                     </div>
-                    <i class="fas fa-cubes fa-2x text-muted"></i>
+                    <i class="fas fa-cubes fa-2x text-muted opacity-75"></i>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6 mb-3 mb-md-0">
-        <div class="card h-100" style="border-left: 4px solid #dc3545;">
-            <div class="card-body">
+    <div class="col-xl col-md-4 col-sm-6 mb-2">
+        <a href="raw_materials.php?low_stock=1" class="text-decoration-none">
+            <div class="card h-100 shadow-sm <?php echo $isLowStock ? 'bg-warning bg-opacity-10' : ''; ?>" style="border-left: 4px solid <?php echo $totalLowAlerts > 0 ? '#ffc107' : '#198754'; ?>;">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-muted small">Low / Out Stock</div>
+                            <h4 class="mb-0 fw-bold <?php echo $totalLowAlerts > 0 ? 'text-warning text-dark' : 'text-success'; ?>">
+                                <?php echo $totalLowAlerts; ?> Items
+                            </h4>
+                            <div class="text-muted small" style="font-size:11px;">
+                                <?php if ($outOfStockCount > 0): ?>
+                                    <span class="text-danger fw-semibold"><?php echo $outOfStockCount; ?> Out</span> &middot; 
+                                <?php endif; ?>
+                                <span><?php echo $lowStockCount; ?> Low Stock</span>
+                            </div>
+                        </div>
+                        <i class="fas fa-exclamation-triangle fa-2x <?php echo $totalLowAlerts > 0 ? 'text-warning' : 'text-success'; ?>"></i>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-xl col-md-4 col-sm-6 mb-2">
+        <div class="card h-100 shadow-sm" style="border-left: 4px solid #dc3545;">
+            <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-muted small">Stock Value (Cost)</div>
-                        <h4 class="mb-0">Rs. <?php echo formatCurrency($totalStockCostValue); ?></h4>
-                        <div class="text-muted small"><?php echo ($fromDate || $toDate) ? 'Cost value (filtered)' : 'Money lying in raw stock'; ?></div>
+                        <h4 class="mb-0 fw-bold text-danger">Rs. <?php echo formatCurrency($totalStockCostValue); ?></h4>
+                        <div class="text-muted small" style="font-size:11px;"><?php echo ($fromDate || $toDate || $isLowStock) ? 'Cost value (filtered)' : 'At purchase cost'; ?></div>
                     </div>
-                    <i class="fas fa-sack-dollar fa-2x text-muted"></i>
+                    <i class="fas fa-sack-dollar fa-2x text-muted opacity-75"></i>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6 mb-3 mb-md-0">
-        <div class="card h-100" style="border-left: 4px solid #28a745;">
-            <div class="card-body">
+    <div class="col-xl col-md-4 col-sm-6 mb-2">
+        <div class="card h-100 shadow-sm" style="border-left: 4px solid #28a745;">
+            <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-muted small">Stock Value (Selling)</div>
-                        <h4 class="mb-0">Rs. <?php echo formatCurrency($totalStockSaleValue); ?></h4>
-                        <div class="text-muted small"><?php echo ($fromDate || $toDate) ? 'Sale value (filtered)' : 'If all stock is sold'; ?></div>
+                        <h4 class="mb-0 fw-bold text-success">Rs. <?php echo formatCurrency($totalStockSaleValue); ?></h4>
+                        <div class="text-muted small" style="font-size:11px;"><?php echo ($fromDate || $toDate || $isLowStock) ? 'Sale value (filtered)' : 'Estimated sale value'; ?></div>
                     </div>
-                    <i class="fas fa-tags fa-2x text-muted"></i>
+                    <i class="fas fa-tags fa-2x text-muted opacity-75"></i>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="card h-100" style="border-left: 4px solid #0d6efd;">
-            <div class="card-body">
+    <div class="col-xl col-md-4 col-sm-6 mb-2">
+        <div class="card h-100 shadow-sm" style="border-left: 4px solid #0d6efd;">
+            <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="text-muted small">Total Issued Value</div>
-                        <h4 class="mb-0">Rs. <?php echo formatCurrency($totalIssuedValue); ?></h4>
-                        <div class="text-muted small"><?php echo number_format($totalIssuedQty, 2); ?> qty issued <?php echo ($fromDate || $toDate) ? '(in period)' : '(all time)'; ?></div>
+                        <div class="text-muted small">Issued Value</div>
+                        <h4 class="mb-0 fw-bold text-primary">Rs. <?php echo formatCurrency($totalIssuedValue); ?></h4>
+                        <div class="text-muted small" style="font-size:11px;"><?php echo number_format($totalIssuedQty, 2); ?> qty issued</div>
                     </div>
-                    <i class="fas fa-sign-out-alt fa-2x text-muted"></i>
+                    <i class="fas fa-sign-out-alt fa-2x text-muted opacity-75"></i>
                 </div>
             </div>
         </div>
@@ -269,6 +323,8 @@ include '../includes/sidebar.php';
                                 <th class="text-center">Stock</th>
                                 <th class="text-end">Price (PKR)</th>
                                 <th class="text-end">Price (CNY)</th>
+                                <th class="text-end">Cost Value</th>
+                                <th class="text-end">Selling Value</th>
                                 <th>Supplier</th>
                                 <th class="text-center" style="width: 130px;">Actions</th>
                             </tr>
@@ -289,7 +345,25 @@ include '../includes/sidebar.php';
                                         <td><strong><?php echo htmlspecialchars($material['material_name']); ?></strong></td>
                                         <td><?php echo htmlspecialchars($material['category'] ?: '-'); ?></td>
                                         <td><?php echo htmlspecialchars($material['unit'] ?: 'units'); ?></td>
-                                        <td class="text-center fw-bold text-primary"><?php echo number_format($material['current_stock'], 2); ?></td>
+                                        <td class="text-center">
+                                            <?php 
+                                            $cStock = (float)$material['current_stock'];
+                                            $mStock = (float)$material['minimum_stock'];
+                                            $isOut = ($cStock <= 0);
+                                            $isLow = (!$isOut && $mStock > 0 && $cStock <= $mStock);
+                                            ?>
+                                            <span class="fw-bold <?php echo $isOut ? 'text-danger' : ($isLow ? 'text-danger' : 'text-primary'); ?>">
+                                                <?php echo number_format($cStock, 2); ?>
+                                            </span>
+                                            <?php if ($isOut): ?>
+                                                <div class="mt-1"><span class="badge bg-danger" style="font-size:10px;">Out of Stock</span></div>
+                                            <?php elseif ($isLow): ?>
+                                                <div class="mt-1"><span class="badge bg-warning text-dark" style="font-size:10px;"><i class="fas fa-exclamation-triangle me-1"></i>Low Stock</span></div>
+                                                <small class="text-muted d-block" style="font-size:10px;">Min: <?php echo number_format($mStock, 2); ?></small>
+                                            <?php elseif ($mStock > 0): ?>
+                                                <small class="text-muted d-block" style="font-size:10px;">Min: <?php echo number_format($mStock, 2); ?></small>
+                                            <?php endif; ?>
+                                        </td>
                                         <td class="text-end fw-semibold">Rs. <?php echo formatCurrency($material['purchase_price_pkr']); ?></td>
                                         <td class="text-end">
                                             <?php if ($material['supplier_type'] == 'chinese' && !empty($material['purchase_price_cny'])): ?>
@@ -298,6 +372,8 @@ include '../includes/sidebar.php';
                                                 <span class="text-muted">-</span>
                                             <?php endif; ?>
                                         </td>
+                                        <td class="text-end">Rs. <?php echo formatCurrency($material['current_stock'] * $material['purchase_price_pkr']); ?></td>
+                                        <td class="text-end">Rs. <?php echo formatCurrency($material['current_stock'] * ($material['selling_price'] ?: $material['purchase_price_pkr'])); ?></td>
                                         <td>
                                             <span class="badge bg-<?php echo $material['supplier_type'] == 'chinese' ? 'info' : 'success'; ?>">
                                                 <?php echo ucfirst($material['supplier_type']); ?>
@@ -323,6 +399,14 @@ include '../includes/sidebar.php';
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </tbody>
+                        <tfoot>
+                            <tr class="table-light fw-bold">
+                                <td colspan="8" class="text-end">Total</td>
+                                <td class="text-end">Rs. <?php echo formatCurrency($totalStockCostValue); ?></td>
+                                <td class="text-end">Rs. <?php echo formatCurrency($totalStockSaleValue); ?></td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>

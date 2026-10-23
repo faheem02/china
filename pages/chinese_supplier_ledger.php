@@ -126,6 +126,62 @@ include '../includes/print_header.php';
     </div>
 </div>
 
+<!-- Balance Summary Cards -->
+<div class="row mb-3">
+    <div class="col-md-3 col-sm-6 mb-2">
+        <div class="stat-card" style="border-left: 4px solid #6c757d;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="stat-label text-muted small">Opening Balance</div>
+                    <div class="stat-number fs-5">¥ <?php echo number_format($supplier['opening_balance'], 2); ?></div>
+                    <div class="small text-muted">PKR <?php echo number_format($supplier['opening_balance'] * $exchangeRate, 2); ?></div>
+                </div>
+                <div class="stat-icon text-muted"><i class="fas fa-wallet fa-2x"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2">
+        <div class="stat-card" style="border-left: 4px solid <?php echo $supplier['current_balance'] >= 0 ? '#dc3545' : '#198754'; ?>;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="stat-label text-muted small">Current Balance</div>
+                    <div class="stat-number fs-5 <?php echo $supplier['current_balance'] >= 0 ? 'text-danger' : 'text-success'; ?>">
+                        ¥ <?php echo number_format($supplier['current_balance'], 2); ?>
+                    </div>
+                    <div class="small fw-bold <?php echo $supplier['current_balance'] >= 0 ? 'text-danger' : 'text-success'; ?>">
+                        PKR <?php echo number_format($supplier['current_balance'] * $exchangeRate, 2); ?>
+                    </div>
+                </div>
+                <div class="stat-icon <?php echo $supplier['current_balance'] >= 0 ? 'text-danger' : 'text-success'; ?>"><i class="fas fa-coins fa-2x"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2">
+        <div class="stat-card" style="border-left: 4px solid #0d6efd;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="stat-label text-muted small">Purchases (Period)</div>
+                    <div class="stat-number fs-5 text-primary">¥ <?php echo number_format(array_sum(array_column($purchases, 'amount_cny')), 2); ?></div>
+                    <div class="small text-muted">PKR <?php echo number_format(array_sum(array_column($purchases, 'amount_pkr')), 2); ?></div>
+                </div>
+                <div class="stat-icon text-primary"><i class="fas fa-shopping-cart fa-2x"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2">
+        <div class="stat-card" style="border-left: 4px solid #198754;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="stat-label text-muted small">Paid (Period)</div>
+                    <div class="stat-number fs-5 text-success">¥ <?php echo number_format(array_sum(array_column($transactions, 'paid_cny')), 2); ?></div>
+                    <div class="small text-muted">PKR <?php echo number_format(array_sum(array_column($transactions, 'paid_pkr')), 2); ?></div>
+                </div>
+                <div class="stat-icon text-success"><i class="fas fa-money-bill-wave fa-2x"></i></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Filter -->
 <div class="row mt-3">
     <div class="col-12">
@@ -193,7 +249,10 @@ include '../includes/print_header.php';
                                     <td class="text-nowrap fw-bold">PKR <?php echo number_format($supplier['opening_balance'] * $exchangeRate, 2); ?></td>
                                     <td>-</td>
                                     <td>-</td>
-                                    <td class="text-nowrap"><strong><?php echo $supplier['symbol']; ?> <?php echo number_format($supplier['opening_balance'], 2); ?></strong></td>
+                                    <td class="text-nowrap">
+                                        <strong><?php echo $supplier['symbol']; ?> <?php echo number_format($supplier['opening_balance'], 2); ?></strong>
+                                        <br><small class="text-muted">PKR <?php echo number_format($supplier['opening_balance'] * $exchangeRate, 2); ?></small>
+                                    </td>
                                     <td></td>
                                 </tr>
                                 <?php 
@@ -224,8 +283,16 @@ include '../includes/print_header.php';
                                         <td class="text-nowrap"><?php echo number_format($transaction['amount_cny'], 2); ?></td>
                                         <td class="text-nowrap">PKR <?php echo number_format($transaction['amount_pkr'], 2); ?></td>
                                         <td class="text-nowrap"><?php echo number_format($transaction['paid_cny'], 2); ?></td>
-                                        <td class="text-nowrap"><?php echo number_format($transaction['balance_cny'], 2); ?></td>
-                                        <td class="text-nowrap"><strong><?php echo $supplier['symbol']; ?> <?php echo number_format($runningBalanceCNY, 2); ?></strong></td>
+                                        <td class="text-nowrap">
+                                            <?php echo number_format($transaction['balance_cny'], 2); ?>
+                                            <?php if ($transaction['balance_cny'] != 0): ?>
+                                                <br><small class="text-muted">PKR <?php echo number_format($transaction['balance_pkr'] ?: ($transaction['balance_cny'] * $exchangeRate), 2); ?></small>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="text-nowrap">
+                                            <strong><?php echo $supplier['symbol']; ?> <?php echo number_format($runningBalanceCNY, 2); ?></strong>
+                                            <br><small class="text-muted">PKR <?php echo number_format($runningBalancePKR, 2); ?></small>
+                                        </td>
                                         <td>
                                             <span class="badge badge-status badge-<?php echo strtolower($transaction['payment_status']); ?>">
                                                 <?php echo ucfirst($transaction['payment_status']); ?>
@@ -247,8 +314,14 @@ include '../includes/print_header.php';
                                 <th class="text-nowrap"><?php echo $supplier['symbol']; ?> <?php echo number_format(array_sum(array_column($transactions, 'amount_cny')), 2); ?></th>
                                 <th class="text-nowrap">PKR <?php echo number_format(array_sum(array_column($transactions, 'amount_pkr')), 2); ?></th>
                                 <th class="text-nowrap"><?php echo $supplier['symbol']; ?> <?php echo number_format(array_sum(array_column($transactions, 'paid_cny')), 2); ?></th>
-                                <th class="text-nowrap"><?php echo $supplier['symbol']; ?> <?php echo number_format(array_sum(array_column($transactions, 'balance_cny')), 2); ?></th>
-                                <th class="text-nowrap"><?php echo $supplier['symbol']; ?> <?php echo number_format($runningBalanceCNY, 2); ?></th>
+                                <th class="text-nowrap">
+                                    <?php echo $supplier['symbol']; ?> <?php echo number_format(array_sum(array_column($transactions, 'balance_cny')), 2); ?>
+                                    <br><small class="fw-normal">PKR <?php echo number_format(array_sum(array_column($transactions, 'balance_pkr')), 2); ?></small>
+                                </th>
+                                <th class="text-nowrap">
+                                    <strong><?php echo $supplier['symbol']; ?> <?php echo number_format($runningBalanceCNY, 2); ?></strong>
+                                    <br><small class="fw-normal">PKR <?php echo number_format($runningBalancePKR, 2); ?></small>
+                                </th>
                                 <th></th>
                             </tr>
                         </tfoot>

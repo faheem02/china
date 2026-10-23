@@ -195,7 +195,10 @@ body { background: #f0f2f5; }
                 <td style="text-align:right"></td>
                 <td style="text-align:right"></td>
                 <td style="text-align:right"></td>
-                <td style="text-align:right"><strong><?php echo $supplier['symbol']; ?> <?php echo formatCurrency($supplier['opening_balance']); ?></strong></td>
+                <td style="text-align:right">
+                    <strong><?php echo $supplier['symbol']; ?> <?php echo formatCurrency($supplier['opening_balance']); ?></strong>
+                    <br><small style="font-weight:normal; color:#666;">PKR <?php echo formatCurrency($supplier['opening_balance'] * $exchangeRate); ?></small>
+                </td>
                 <td></td>
             </tr>
             <?php if (count($transactions) > 0): ?>
@@ -223,9 +226,15 @@ body { background: #f0f2f5; }
                         <td style="text-align:right"><?php echo formatCurrency($transaction['amount_cny']); ?></td>
                         <td style="text-align:right"><?php echo formatCurrency($transaction['amount_pkr']); ?></td>
                         <td style="text-align:right"><?php echo formatCurrency($transaction['paid_cny']); ?></td>
-                        <td style="text-align:right"><?php echo formatCurrency($transaction['balance_cny']); ?></td>
+                        <td style="text-align:right">
+                            <?php echo formatCurrency($transaction['balance_cny']); ?>
+                            <?php if ($transaction['balance_cny'] != 0): ?>
+                                <br><small style="color:#666;">PKR <?php echo formatCurrency($transaction['balance_pkr'] ?: ($transaction['balance_cny'] * $exchangeRate)); ?></small>
+                            <?php endif; ?>
+                        </td>
                         <td style="text-align:right; color: <?php echo $runningBalanceCNY > 0 ? '#dc3545' : '#198754'; ?>; font-weight:700;">
                             <?php echo $supplier['symbol']; ?> <?php echo formatCurrency($runningBalanceCNY); ?>
+                            <br><small style="font-weight:normal; color:#666;">PKR <?php echo formatCurrency($runningBalancePKR); ?></small>
                         </td>
                         <td>
                             <span class="badge badge-status badge-<?php echo strtolower($transaction['payment_status']); ?>">
@@ -246,9 +255,13 @@ body { background: #f0f2f5; }
                 <th style="text-align:right"><?php echo $supplier['symbol']; ?> <?php echo formatCurrency($totalAmountCNY); ?></th>
                 <th style="text-align:right">PKR <?php echo formatCurrency($totalAmountPKR); ?></th>
                 <th style="text-align:right"><?php echo $supplier['symbol']; ?> <?php echo formatCurrency($totalPaidCNY); ?></th>
-                <th style="text-align:right"><?php echo $supplier['symbol']; ?> <?php echo formatCurrency($totalBalanceCNY); ?></th>
+                <th style="text-align:right">
+                    <?php echo $supplier['symbol']; ?> <?php echo formatCurrency($totalBalanceCNY); ?>
+                    <br><small style="font-weight:normal;">PKR <?php echo formatCurrency($totalBalancePKR); ?></small>
+                </th>
                 <th style="text-align:right; color: <?php echo $runningBalanceCNY > 0 ? '#dc3545' : '#198754'; ?>;">
                     <?php echo $supplier['symbol']; ?> <?php echo formatCurrency($runningBalanceCNY); ?>
+                    <br><small style="font-weight:normal; color:#555;">PKR <?php echo formatCurrency($runningBalancePKR); ?></small>
                 </th>
                 <th></th>
             </tr>

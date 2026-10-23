@@ -163,25 +163,37 @@ include '../includes/sidebar.php';
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6">
-                        <table class="table table-bordered">
+                        <table class="table table-bordered mb-0">
                             <tr>
-                                <th style="width: 40%;">Supplier Name</th>
+                                <th style="width: 35%;">Supplier Name</th>
                                 <td><strong><?php echo htmlspecialchars($supplier['supplier_name']); ?></strong></td>
                             </tr>
                             <tr>
                                 <th>Company Name</th>
-                                <td><?php echo htmlspecialchars($supplier['company_name']); ?></td>
+                                <td><?php echo htmlspecialchars($supplier['company_name'] ?: '-'); ?></td>
                             </tr>
                             <tr>
                                 <th>Phone</th>
-                                <td><?php echo htmlspecialchars($supplier['phone']); ?></td>
+                                <td><?php echo htmlspecialchars($supplier['phone'] ?: '-'); ?></td>
                             </tr>
                             <tr>
                                 <th>Email</th>
-                                <td><?php echo htmlspecialchars($supplier['email']); ?></td>
+                                <td><?php echo htmlspecialchars($supplier['email'] ?: '-'); ?></td>
                             </tr>
                             <tr>
-                                <th>Currency</th>
+                                <th>Status</th>
+                                <td>
+                                    <span class="badge badge-status badge-<?php echo $supplier['status']; ?>">
+                                        <?php echo ucfirst($supplier['status']); ?>
+                                    </span>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-bordered mb-0">
+                            <tr>
+                                <th style="width: 35%;">Currency</th>
                                 <td>
                                     <span class="badge bg-info">
                                         <?php echo $supplier['currency_code'] . ' (' . $supplier['symbol'] . ')'; ?>
@@ -194,52 +206,17 @@ include '../includes/sidebar.php';
                             </tr>
                             <tr>
                                 <th>City</th>
-                                <td><?php echo htmlspecialchars($supplier['city']); ?></td>
+                                <td><?php echo htmlspecialchars($supplier['city'] ?: '-'); ?></td>
                             </tr>
                             <tr>
                                 <th>Country</th>
-                                <td><?php echo htmlspecialchars($supplier['country']); ?></td>
-                            </tr>
-                            <tr>
-                                <th>Status</th>
-                                <td>
-                                    <span class="badge badge-status badge-<?php echo $supplier['status']; ?>">
-                                        <?php echo ucfirst($supplier['status']); ?>
-                                    </span>
-                                </td>
+                                <td><?php echo htmlspecialchars($supplier['country'] ?: '-'); ?></td>
                             </tr>
                             <tr>
                                 <th>Address</th>
-                                <td><?php echo htmlspecialchars($supplier['address']); ?></td>
+                                <td><?php echo htmlspecialchars($supplier['address'] ?: '-'); ?></td>
                             </tr>
                         </table>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card bg-light">
-                            <div class="card-body text-center">
-                                <h5 class="text-muted">Opening Balance</h5>
-                                <h4><?php echo $supplier['symbol']; ?> <?php echo formatCurrency($supplier['opening_balance']); ?></h4>
-                                <hr>
-                                <h5 class="text-muted">Current Balance</h5>
-                                <h4 class="<?php echo $supplier['current_balance'] < 0 ? 'text-danger' : 'text-success'; ?>">
-                                    <?php echo $supplier['symbol']; ?> <?php echo formatCurrency($supplier['current_balance']); ?>
-                                </h4>
-                                <small class="text-muted">≈ PKR <?php echo formatCurrency($supplier['current_balance'] * $exchangeRate); ?></small>
-                                <hr>
-                                <div class="row">
-                                    <div class="col-6">
-                                        <h6 class="text-muted">Total Purchases</h6>
-                                        <h5 class="text-primary"><?php echo $supplier['symbol']; ?> <?php echo formatCurrency($totalPurchasesCNY); ?></h5>
-                                        <small class="text-muted">PKR <?php echo formatCurrency($totalPurchasesPKR); ?></small>
-                                    </div>
-                                    <div class="col-6">
-                                        <h6 class="text-muted">Total Paid</h6>
-                                        <h5 class="text-success"><?php echo $supplier['symbol']; ?> <?php echo formatCurrency($totalPaidCNY); ?></h5>
-                                        <small class="text-muted">PKR <?php echo formatCurrency($totalPaidPKR); ?></small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -283,7 +260,10 @@ include '../includes/sidebar.php';
                                     <td class="fw-bold"><?php echo formatCurrency($supplier['opening_balance']); ?></td>
                                     <td class="fw-bold">PKR <?php echo formatCurrency($supplier['opening_balance'] * $exchangeRate); ?></td>
                                     <td>-</td>
-                                    <td class="fw-bold"><?php echo formatCurrency($supplier['opening_balance']); ?></td>
+                                    <td class="fw-bold">
+                                        <?php echo formatCurrency($supplier['opening_balance']); ?>
+                                        <br><small class="text-muted">PKR <?php echo formatCurrency($supplier['opening_balance'] * $exchangeRate); ?></small>
+                                    </td>
                                     <td><span class="badge bg-info">Active</span></td>
                                 </tr>
                                 <?php foreach (array_slice($transactions, 0, 10) as $transaction): ?>
@@ -299,7 +279,10 @@ include '../includes/sidebar.php';
                                         <td><?php echo formatCurrency($transaction['amount_cny']); ?></td>
                                         <td><?php echo formatCurrency($transaction['amount_pkr']); ?></td>
                                         <td><?php echo formatCurrency($transaction['paid_cny']); ?></td>
-                                        <td><?php echo formatCurrency($transaction['running_balance_cny']); ?></td>
+                                        <td class="fw-bold">
+                                            <?php echo formatCurrency($transaction['running_balance_cny']); ?>
+                                            <br><small class="text-muted">PKR <?php echo formatCurrency($transaction['running_balance_cny'] * $exchangeRate); ?></small>
+                                        </td>
                                         <td>
                                             <span class="badge badge-status badge-<?php echo strtolower($transaction['payment_status']); ?>">
                                                 <?php echo ucfirst($transaction['payment_status']); ?>

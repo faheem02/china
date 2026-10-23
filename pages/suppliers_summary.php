@@ -182,9 +182,7 @@ $hasSuppliers = is_array($suppliers) && count($suppliers) > 0;
                                 <th>Supplier Name</th>
                                 <th>Company</th>
                                 <th>Phone</th>
-                                <th>Total Purchases</th>
-                                <th>Total Paid</th>
-                                <th>Outstanding</th>
+                                <th>Address</th>
                                 <th>Current Balance</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -199,15 +197,11 @@ $hasSuppliers = is_array($suppliers) && count($suppliers) > 0;
                                         <td>
                                             <strong><?php echo htmlspecialchars($supplier['supplier_name']); ?></strong>
                                         </td>
-                                        <td><?php echo htmlspecialchars($supplier['company_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($supplier['phone']); ?></td>
-                                        <td><?php echo formatCurrency($supplier['total_purchase_amount']); ?></td>
-                                        <td><?php echo formatCurrency($supplier['total_paid_amount']); ?></td>
-                                        <td class="<?php echo $supplier['total_balance'] > 0 ? 'text-danger' : 'text-success'; ?>">
-                                            <?php echo formatCurrency($supplier['total_balance']); ?>
-                                        </td>
+                                        <td><?php echo htmlspecialchars($supplier['company_name'] ?: '-'); ?></td>
+                                        <td><?php echo htmlspecialchars($supplier['phone'] ?: '-'); ?></td>
+                                        <td><?php echo htmlspecialchars($supplier['address'] ?: '-'); ?></td>
                                         <td class="<?php echo $supplier['current_balance'] < 0 ? 'text-danger' : 'text-success'; ?>">
-                                            <?php echo formatCurrency($supplier['current_balance']); ?>
+                                            <strong><?php echo formatCurrency($supplier['current_balance']); ?></strong>
                                         </td>
                                         <td>
                                             <span class="badge badge-status badge-<?php echo $supplier['status']; ?>">
@@ -234,10 +228,7 @@ $hasSuppliers = is_array($suppliers) && count($suppliers) > 0;
                         <?php if (count($suppliers) > 0): ?>
                         <tfoot class="table-primary">
                             <tr>
-                                <th colspan="4" class="text-end">Total</th>
-                                <th><?php echo formatCurrency($totalPurchases); ?></th>
-                                <th><?php echo formatCurrency($totalPaid); ?></th>
-                                <th><?php echo formatCurrency($totalOutstanding); ?></th>
+                                <th colspan="5" class="text-end">Total Balance</th>
                                 <th><?php echo formatCurrency($totalBalance); ?></th>
                                 <th colspan="2"></th>
                             </tr>
@@ -260,7 +251,7 @@ $(document).ready(function() {
         "pageLength": 25,
         "order": [[1, "asc"]],
         "columnDefs": [
-            { "orderable": false, "targets": [9] }
+            { "orderable": false, "targets": [7] }
         ],
         "language": {
             "search": "Search Suppliers:",

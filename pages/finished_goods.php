@@ -34,18 +34,35 @@ $params = [];
 $types = '';
 
 if ($fromDate !== '') {
-    $where[] = "DATE(date_time) >= ?";
+    $where[] = "DATE(fg.date_time) >= ?";
     $params[] = $fromDate;
     $types .= 's';
 }
 if ($toDate !== '') {
-    $where[] = "DATE(date_time) <= ?";
+    $where[] = "DATE(fg.date_time) <= ?";
     $params[] = $toDate;
     $types .= 's';
 }
 
 $whereSql = !empty($where) ? " WHERE " . implode(' AND ', $where) : "";
-$sql = "SELECT * FROM finished_goods" . $whereSql . " ORDER BY id DESC";
+$sql = "SELECT fg.*,
+        (SELECT cs.supplier_name
+            FROM import_purchase_items ipi
+            INNER JOIN import_purchases ip ON ip.id = ipi.purchase_id
+            INNER JOIN chinese_suppliers cs ON cs.id = ip.supplier_id
+            WHERE ipi.item_type = 'finished_good' AND ipi.material_id = fg.id
+            ORDER BY ipi.id DESC LIMIT 1) AS chinese_supplier,
+        (SELECT ls.supplier_name
+            FROM local_purchase_items lpi
+            INNER JOIN local_purchases lp ON lp.id = lpi.purchase_id
+            INNER JOIN local_suppliers ls ON ls.id = lp.supplier_id
+            WHERE lpi.item_type = 'finished_good' AND lpi.material_id = fg.id
+            ORDER BY lpi.id DESC LIMIT 1) AS local_supplier,
+        (SELECT COUNT(*) FROM import_purchase_items ipi
+            WHERE ipi.item_type = 'finished_good' AND ipi.material_id = fg.id) AS import_count,
+        (SELECT COUNT(*) FROM local_purchase_items lpi
+            WHERE lpi.item_type = 'finished_good' AND lpi.material_id = fg.id) AS local_count
+        FROM finished_goods fg" . $whereSql . " ORDER BY fg.id DESC";
 $products = !empty($params) ? getRows($sql, $types, $params) : getRows($sql);
 
 // Build print URL preserving active filter
@@ -251,6 +268,7 @@ include '../includes/sidebar.php';
                                 <th>Code</th>
                                 <th>Product Name</th>
                                 <th>Category</th>
+                                <th>Source / Supplier</th>
                                 <th>Unit</th>
                                 <th class="text-center">Stock</th>
                                 <th class="text-end">Selling Price</th>
@@ -275,6 +293,22 @@ include '../includes/sidebar.php';
                                         </td>
                                         <td><strong><?php echo htmlspecialchars($product['product_name']); ?></strong></td>
                                         <td><?php echo htmlspecialchars($product['category'] ?: '-'); ?></td>
+                                        <td>
+                                            <?php if (!empty($product['chinese_supplier'])): ?>
+                                                <span class="badge bg-info text-dark" title="Received via import purchase from Chinese supplier"><i class="fas fa-plane me-1"></i>Chinese</span>
+                                                <small class="d-block text-muted"><?php echo htmlspecialchars($product['chinese_supplier']); ?></small>
+                                            <?php endif; ?>
+                                            <?php if (!empty($product['local_supplier'])): ?>
+                                                <span class="badge bg-success" title="Received via local purchase"><i class="fas fa-truck me-1"></i>Local</span>
+                                                <small class="d-block text-muted"><?php echo htmlspecialchars($product['local_supplier']); ?></small>
+                                            <?php endif; ?>
+                                            <?php if (empty($product['chinese_supplier']) && empty($product['local_supplier'])): ?>
+                                                <span class="badge bg-secondary" title="No purchase record found (added manually or received from production)"><i class="fas fa-industry me-1"></i>In-house / Not Recorded</span>
+                                            <?php endif; ?>
+                                            <?php if (!empty($product['import_count']) && !empty($product['local_count'])): ?>
+                                                <small class="d-block text-muted">Both sources</small>
+                                            <?php endif; ?>
+                                        </td>
                                         <td><?php echo htmlspecialchars($product['unit'] ?: 'units'); ?></td>
                                         <td class="text-center fw-bold text-primary"><?php echo number_format($product['current_stock'], 2); ?></td>
                                         <td class="text-end">Rs. <?php echo formatCurrency($product['selling_price']); ?></td>

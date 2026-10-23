@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save_expense']) || !
     $category = trim($_POST['category'] ?? '');
     $amount = (float)($_POST['amount'] ?? 0);
     $payment_method = $_POST['payment_method'] ?? 'cash';
-    if (!in_array($payment_method, ['cash', 'bank', 'credit'], true)) {
+    if (!in_array($payment_method, ['cash', 'bank'], true)) {
         $payment_method = 'cash';
     }
     $bank_id = ($payment_method === 'bank') ? (int)($_POST['bank_id'] ?? 0) : null;
@@ -148,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save_expense']) || !
             $bank_name = $bRow['bank_name'] . ' (' . $bRow['account_number'] . ')';
         }
     }
-    $paid_amount = $payment_method === 'credit' ? 0 : $amount;
+    $paid_amount = $amount;
     $paid_by = $payment_method;
     $reference_no = '';
     $description = trim($_POST['description'] ?? '');
@@ -269,40 +269,14 @@ include '../includes/header.php';
 include '../includes/sidebar.php';
 ?>
 
-<div class="row mb-3">
-    <div class="col-md-4">
-        <div class="stat-card" style="border-left-color:#dc3545;">
-            <div class="stat-number text-danger"><?php echo formatCurrency($todayStats['total']); ?></div>
-            <div class="stat-label">Today's Expenses</div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="stat-card" style="border-left-color:#0d6efd;">
-            <div class="stat-number text-primary"><?php echo formatCurrency($monthStats['total']); ?></div>
-            <div class="stat-label">This Month's Expenses</div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="stat-card" style="border-left-color:#198754;">
-            <div class="stat-number text-success"><?php echo count($recentExpenses); ?></div>
-            <div class="stat-label">Recent Entries</div>
-        </div>
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-12">
-        <?php if ($message): ?>
-            <div class="alert alert-<?php echo $messageType; ?> alert-dismissible fade show shadow-sm" role="alert">
-                <i class="fas fa-<?php echo $messageType === 'success' ? 'check-circle' : 'exclamation-circle'; ?> me-2"></i>
-                <?php echo $message; ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
-    </div>
-</div>
-
 <?php if ($isEditingHead): ?>
+<!-- EDIT EXPENSE HEAD ONLY FORM (When accessed via edit_head) -->
+<div class="row">
+    <div class="col-lg-6 mx-auto">
+        <div class="card shadow-sm border-0">
+            <div class="card-header text-white" style="background:#1a2332;">
+                <h5 class="mb-0"><i class="fas fa-tag me-2"></i><?php echo $editHead ? 'Edit Expense Category' : 'Add New Expense Category'; ?></h5>
+            </div>
 <!-- EDIT EXPENSE HEAD ONLY FORM (When accessed via edit_head) -->
 <div class="row">
     <div class="col-lg-6 mx-auto">
@@ -409,7 +383,6 @@ include '../includes/sidebar.php';
                         <select class="form-select" name="payment_method" id="expense_payment_method" required onchange="toggleExpenseBank(this.value)">
                             <option value="cash" <?php echo $currentPaymentMethod === 'cash' ? 'selected' : ''; ?>>Cash</option>
                             <option value="bank" <?php echo in_array($currentPaymentMethod, ['bank', 'bank_transfer', 'cheque'], true) ? 'selected' : ''; ?>>Bank</option>
-                            <option value="credit" <?php echo $currentPaymentMethod === 'credit' ? 'selected' : ''; ?>>Credit</option>
                         </select>
                     </div>
 

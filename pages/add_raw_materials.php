@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $category = trim($_POST['category']);
     $unit = trim($_POST['unit']);
     $current_stock = (float)$_POST['current_stock'];
+    $minimum_stock = (float)($_POST['minimum_stock'] ?? 0);
     $purchase_price_pkr = (float)$_POST['purchase_price_pkr'];
     $purchase_price_cny = (float)$_POST['purchase_price_cny'];
     $selling_price = (float)$_POST['selling_price'];
@@ -47,10 +48,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $messageType = 'danger';
     } else {
         if ($id > 0) {
-            $sql = "UPDATE raw_materials SET material_code=?, material_name=?, category=?, unit=?, current_stock=?, purchase_price_pkr=?, purchase_price_cny=?, selling_price=?, supplier_type=?, supplier_id=?, status=?, date_time=? WHERE id=?";
-            $result = modifyData($sql, 'ssssddddssssi', [
+            $sql = "UPDATE raw_materials SET material_code=?, material_name=?, category=?, unit=?, current_stock=?, minimum_stock=?, purchase_price_pkr=?, purchase_price_cny=?, selling_price=?, supplier_type=?, supplier_id=?, status=?, date_time=? WHERE id=?";
+            $result = modifyData($sql, 'ssssdddddssssi', [
                 $material_code, $material_name, $category, $unit,
-                $current_stock, $purchase_price_pkr, $purchase_price_cny,
+                $current_stock, $minimum_stock, $purchase_price_pkr, $purchase_price_cny,
                 $selling_price, $supplier_type, $supplier_id, $status, getCurrentDateTime(), $id
             ]);
             if ($result !== false) {
@@ -67,10 +68,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = 'Material code already exists!';
                 $messageType = 'danger';
             } else {
-                $sql = "INSERT INTO raw_materials (material_code, material_name, category, unit, current_stock, purchase_price_pkr, purchase_price_cny, selling_price, supplier_type, supplier_id, status, date_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                $result = insertData($sql, 'ssssddddssss', [
+                $sql = "INSERT INTO raw_materials (material_code, material_name, category, unit, current_stock, minimum_stock, purchase_price_pkr, purchase_price_cny, selling_price, supplier_type, supplier_id, status, date_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                $result = insertData($sql, 'ssssdddddssss', [
                     $material_code, $material_name, $category, $unit,
-                    $current_stock, $purchase_price_pkr, $purchase_price_cny,
+                    $current_stock, $minimum_stock, $purchase_price_pkr, $purchase_price_cny,
                     $selling_price, $supplier_type, $supplier_id, $status, getCurrentDateTime()
                 ]);
 
@@ -135,6 +136,11 @@ include '../includes/sidebar.php';
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Current Stock</label>
                             <input type="number" step="0.01" class="form-control" name="current_stock" value="<?php echo $editMaterial ? $editMaterial['current_stock'] : '0.00'; ?>">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Minimum Stock (Alert Level)</label>
+                            <input type="number" step="0.01" class="form-control" name="minimum_stock" value="<?php echo $editMaterial ? $editMaterial['minimum_stock'] : '0.00'; ?>">
+                            <small class="text-muted">Low stock warning threshold</small>
                         </div>
 
                         <div class="col-md-6 mb-3">

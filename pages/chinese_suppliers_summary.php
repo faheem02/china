@@ -233,9 +233,7 @@ $hasSuppliers = is_array($suppliers) && count($suppliers) > 0;
                                 <th>#</th>
                                 <th>Supplier</th>
                                 <th>Contact</th>
-                                <th class="text-nowrap">Purchases (CNY)</th>
-                                <th class="text-nowrap">Paid (CNY)</th>
-                                <th class="text-nowrap">Outstanding (CNY)</th>
+                                <th>Address</th>
                                 <th class="text-nowrap">Balance (CNY)</th>
                                 <th class="text-nowrap">Balance (PKR)</th>
                                 <th>Actions</th>
@@ -258,11 +256,7 @@ $hasSuppliers = is_array($suppliers) && count($suppliers) > 0;
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-nowrap"><?php echo htmlspecialchars($supplier['phone'] ?: '-'); ?></td>
-                                        <td class="text-nowrap">¥ <?php echo number_format($supplier['total_purchase_cny'], 2); ?></td>
-                                        <td class="text-nowrap">¥ <?php echo number_format($supplier['total_paid_cny'], 2); ?></td>
-                                        <td class="text-nowrap <?php echo $supplier['total_balance_cny'] > 0 ? 'text-danger' : 'text-success'; ?>">
-                                            ¥ <?php echo number_format($supplier['total_balance_cny'], 2); ?>
-                                        </td>
+                                        <td><?php echo htmlspecialchars($supplier['address'] ?: '-'); ?></td>
                                         <td class="text-nowrap <?php echo $supplier['current_balance'] < 0 ? 'text-danger' : 'text-success'; ?>">
                                             <strong>¥ <?php echo number_format($supplier['current_balance'], 2); ?></strong>
                                         </td>
@@ -290,10 +284,7 @@ $hasSuppliers = is_array($suppliers) && count($suppliers) > 0;
                         <?php if (count($suppliers) > 0): ?>
                         <tfoot class="table-primary">
                             <tr>
-                                <th colspan="3" class="text-end">Total</th>
-                                <th class="text-nowrap">¥ <?php echo number_format($totalPurchasesCNY, 2); ?></th>
-                                <th class="text-nowrap">¥ <?php echo number_format($totalPaidCNY, 2); ?></th>
-                                <th class="text-nowrap">¥ <?php echo number_format($totalOutstandingCNY, 2); ?></th>
+                                <th colspan="4" class="text-end">Total Balance</th>
                                 <th class="text-nowrap">¥ <?php echo number_format($totalBalanceCNY, 2); ?></th>
                                 <th class="text-nowrap">PKR <?php echo number_format($totalBalancePKR, 2); ?></th>
                                 <th></th>
@@ -318,7 +309,7 @@ $(document).ready(function() {
         "pageLength": 25,
         "order": [[1, "asc"]],
         "columnDefs": [
-            { "orderable": false, "targets": [8] }
+            { "orderable": false, "targets": [6] }
         ],
         "language": {
             "search": "Search Suppliers:",
